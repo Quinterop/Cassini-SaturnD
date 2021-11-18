@@ -21,15 +21,15 @@ const char usage_info[] = "\
 
 int main(int argc, char * argv[]) {
   errno = 0;
-  
+
   char * minutes_str = "*";
   char * hours_str = "*";
   char * daysofweek_str = "*";
   char * pipes_directory = NULL;
-  
+
   uint16_t operation = CLIENT_REQUEST_LIST_TASKS;
   uint64_t taskid;
-  
+
   int opt;
   char * strtoull_endp;
   while ((opt = getopt(argc, argv, "hlcqm:H:d:p:r:x:o:e:")) != -1) {
@@ -84,11 +84,15 @@ int main(int argc, char * argv[]) {
       goto error;
     }
   }
-
   // --------
   // | TODO |
   // --------
-  
+
+  if(pipes_directory==NULL){
+    char* username = getlogin();
+    char* cat = strcat("/tmp/",username);
+    pipes_directory=strcat(cat,"/saturnd/pipes");}
+
   return EXIT_SUCCESS;
 
  error:
@@ -97,4 +101,3 @@ int main(int argc, char * argv[]) {
   pipes_directory = NULL;
   return EXIT_FAILURE;
 }
-
