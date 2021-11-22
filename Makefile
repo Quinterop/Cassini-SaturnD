@@ -5,4 +5,4 @@ init:
 	$(CC) $(CCFLAGS) src/cassini.c -o cassini 
 
 distclean:
-	rm -f cassini.o
+	rm -f cassini *.o
