@@ -91,7 +91,20 @@ int main(int argc, char * argv[]) {
   if(pipes_directory==NULL){
     char* username = getlogin();
     char* cat = strcat("/tmp/",username);
-    pipes_directory=strcat(cat,"/saturnd/pipes");}
+    pipes_directory=strcat(cat,"/saturnd/pipes");
+  }
+
+  if (operation == CLIENT_REQUEST_LIST_TASKS) {
+    int fd_request = open("./run/pipes/saturnd-request-pipe", O_WRONLY);
+    if (fd_request == -1) {
+      goto error;
+    }
+    uint16_t op = htobe16(operation);
+    write(fd_request,&op,sizeof(uint16_t));
+    close(fd_request);
+  }
+
+
 
   return EXIT_SUCCESS;
 
