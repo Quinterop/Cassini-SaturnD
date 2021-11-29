@@ -30,11 +30,6 @@ int main(int argc, char * argv[]) {
   uint16_t operation = CLIENT_REQUEST_LIST_TASKS;
   uint64_t taskid;
 
-  char *username; 
-  struct passwd *pass; 
-  pass = getpwuid(getuid()); 
-  username = pass->pw_name;
-
   int opt;
   char * strtoull_endp;
   while ((opt = getopt(argc, argv, "hlcqm:H:d:p:r:x:o:e:")) != -1) {
@@ -92,14 +87,14 @@ int main(int argc, char * argv[]) {
 
   //Chemin par defaut des pipes
   if(pipes_directory==NULL){
+    char *username = getlogin();
     size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
     char* pipes_directory = malloc(length + 1);
     if (pipes_directory == NULL) goto error;
-    strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
-    // ou dessous
-    // strcpy(pipes_directory, "/tmp/");
-    // strcat(pipes_directory, username);
-    // strcat(pipes_directory, "/saturnd/pipes");
+    //strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
+    strcpy(pipes_directory, "/tmp/");
+    strcat(pipes_directory, username);
+    strcat(pipes_directory, "/saturnd/pipes");
   }
   
   char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
