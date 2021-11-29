@@ -30,6 +30,11 @@ int main(int argc, char * argv[]) {
   uint16_t operation = CLIENT_REQUEST_LIST_TASKS;
   uint64_t taskid;
 
+  char *username; 
+  struct passwd *pass; 
+  pass = getpwuid(getuid()); 
+  username = pass->pw_name;
+
   int opt;
   char * strtoull_endp;
   while ((opt = getopt(argc, argv, "hlcqm:H:d:p:r:x:o:e:")) != -1) {
@@ -85,14 +90,28 @@ int main(int argc, char * argv[]) {
     }
   }
 
+  //Chemin par defaut des pipes
   if(pipes_directory==NULL){
-    char* username = getlogin();
-    char* cat = strcat("/tmp/",username);
-    pipes_directory=strcat(cat,"/saturnd/pipes");
+    size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
+    char* pipes_directory = malloc(length + 1);
+    if (pipes_directory == NULL) goto error;
+    strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
+    // ou dessous
+    // strcpy(pipes_directory, "/tmp/");
+    // strcat(pipes_directory, username);
+    // strcat(pipes_directory, "/saturnd/pipes");
   }
+  
+  char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
+  if (path_request == NULL) goto error;
+  strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
+  char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
+  if (path_reply == NULL) goto error;
+  strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
 
+  //Option LIST TASKS (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
-    int fd_request = open("./run/pipes/saturnd-request-pipe", O_WRONLY);
+    int fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) {
       close(fd_request);
       goto error;
@@ -101,7 +120,7 @@ int main(int argc, char * argv[]) {
     write(fd_request,&opcode,sizeof(uint16_t));
     close(fd_request);
 
-    int fd_reply = open("./run/pipes/saturnd-reply-pipe", O_RDONLY);
+    int fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) {
       close(fd_reply);
       goto error;
@@ -123,6 +142,8 @@ int main(int argc, char * argv[]) {
  error:
   if (errno != 0) perror("main");
   free(pipes_directory);
+  free(path_request);
+  free(path_reply);
   pipes_directory = NULL;
   return EXIT_FAILURE;
 }
