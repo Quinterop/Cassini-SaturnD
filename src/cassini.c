@@ -84,9 +84,6 @@ int main(int argc, char * argv[]) {
       goto error;
     }
   }
-  // --------
-  // | TODO |
-  // --------
 
   if(pipes_directory==NULL){
     char* username = getlogin();
@@ -94,17 +91,32 @@ int main(int argc, char * argv[]) {
     pipes_directory=strcat(cat,"/saturnd/pipes");
   }
 
-  if (operation == CLIENT_REQUEST_LIST_TASKS) {
+  if(operation == CLIENT_REQUEST_LIST_TASKS) {
     int fd_request = open("./run/pipes/saturnd-request-pipe", O_WRONLY);
     if (fd_request == -1) {
+      close(fd_request);
       goto error;
     }
-    uint16_t op = htobe16(operation);
-    write(fd_request,&op,sizeof(uint16_t));
+    uint16_t opcode = htobe16(operation);
+    write(fd_request,&opcode,sizeof(uint16_t));
     close(fd_request);
+
+    int fd_reply = open("./run/pipes/saturnd-reply-pipe", O_RDONLY);
+    if (fd_reply == -1) {
+      close(fd_reply);
+      goto error;
+    }
+    uint16_t reptype;
+    uint32_t nbtasks;
+    read(fd_reply, &reptype, sizeof(uint16_t));
+    read(fd_reply, &nbtasks, sizeof(uint32_t));
+    reptype = be16toh(reptype);
+    nbtasks = be32toh(nbtasks);
+    if(nbtasks != 0) {
+      // TODO L'affichage de la liste des tasks
+    }
+    close(fd_reply);
   }
-
-
 
   return EXIT_SUCCESS;
 
