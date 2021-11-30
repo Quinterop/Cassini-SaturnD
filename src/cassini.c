@@ -1,4 +1,5 @@
 #include "../include/cassini.h"
+#include "../include/timing-text-io.h"
 
 const char usage_info[] = "\
    usage: cassini [OPTIONS] -l -> list all tasks\n\
@@ -85,6 +86,12 @@ int main(int argc, char * argv[]) {
     }
   }
 
+  /*if(pipes_directory==NULL){
+    char* username = getlogin();
+    char* cat = strcat("/tmp/",username);
+    pipes_directory=strcat(cat,"/saturnd/pipes");
+  }*/
+
   if(pipes_directory==NULL){
     char* username = getlogin();
     char* cat = strcat("/tmp/",username);
@@ -116,7 +123,44 @@ int main(int argc, char * argv[]) {
       // TODO L'affichage de la liste des tasks
     }
     close(fd_reply);
+
+  //COMMANDE REQUETE CREATE -c:
+  } else if (operation == CLIENT_REQUEST_CREATE_TASK){
+    int fd_request = open("./run/pipes/saturnd-request-pipe", O_WRONLY);
+    if (fd_request == -1) {
+      close(fd_request);
+      goto error;
+    }
+    //Ecriture de l'OPCODE (OPCODE='CR' <uint16>) :
+    int16_t opcode = htobe16(operation);
+    write(fd_request,&opcode,sizeof(uint16_t));
+    //Ecriture du TIMING (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>) :
+    struct timing t; //ecrire le resultat sous forme d'une struct timing
+    int n = timing_from_strings(&t,minutes_str,hours_str,daysofweek_str);
+    if (n==-1){
+      goto error;
+    }
+    uint64_t min = htobe64(t.minutes);
+    uint32_t hours = htobe32(t.hours);
+    //uint8_t days = htobe8(t.daysofweek);
+    write(fd_request,&min,sizeof(uint64_t));
+    write(fd_request,&hours,sizeof(uint32_t));
+    write(fd_request,&t.daysofweek,sizeof(uint8_t));
+    //Ecriture de la COMMANDLINE (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>) :
+    /*struct commandline c;
+    uint32_t argc = htobe32(c.argc);
+    write(fd_request,&argc,sizeof(uint32_t));
+    uint32_t argv = htobe32(c.argv->contenu[0]);
+    /*if (argv==null){
+      goto error;
+    }
+    for (int i=1; i<argc; i++){
+      write(fd_request,&c.argv[i],sizeof(c.argv->length));
+    }*/
+    close(fd_request);
+
   }
+
 
   return EXIT_SUCCESS;
 
