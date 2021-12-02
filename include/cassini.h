@@ -10,8 +10,20 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <endian.h>
+#include <inttypes.h>
 
 #include "client-request.h"
 #include "server-reply.h"
+#include "timing-text-io.h"
+
+typedef struct string{
+    uint32_t L;
+    char *contenu;
+} string;
+
+typedef struct commandline{
+    uint32_t argc;
+    string argv[];
+}commandline;
 
 #endif // CASSINI

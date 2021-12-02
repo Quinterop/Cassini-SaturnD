@@ -103,6 +103,7 @@ int main(int argc, char * argv[]) {
   char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
   if (path_reply == NULL) goto error;
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
+  free(pipes_directory);
 
   //Option LIST TASKS (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
@@ -120,17 +121,59 @@ int main(int argc, char * argv[]) {
       close(fd_reply);
       goto error;
     }
+    // VARIABLES A METTRE AU DEBUT
     uint16_t reptype;
     uint32_t nbtasks;
+    uint32_t cmdArgc;
     read(fd_reply, &reptype, sizeof(uint16_t));
     read(fd_reply, &nbtasks, sizeof(uint32_t));
     reptype = be16toh(reptype);
     nbtasks = be32toh(nbtasks);
     if(nbtasks != 0) {
-      // TODO L'affichage de la liste des tasks
+      for (int i = 0; i < nbtasks; i++) { //pour chaque task
+        //read du taskid
+        read(fd_reply, &taskid, sizeof(uint64_t));
+        taskid = be64toh(taskid);
+        printf("%" PRId64 ": ", taskid);
+
+        //read du timing
+        timing *t = malloc(sizeof(timing)*10);
+        if (t == NULL) { goto error; }
+        read(fd_reply, t, sizeof(timing));
+        t->minutes = be64toh(t->minutes);
+        t->hours = be32toh(t->hours);
+        char *bufferTiming = malloc(TIMING_TEXT_MIN_BUFFERSIZE);
+        if (bufferTiming == NULL) { goto error; }
+        timing_string_from_timing(bufferTiming, t);
+        printf("%s ", bufferTiming);
+
+        //read de la commandline
+        read(fd_reply, &cmdArgc, sizeof(uint32_t)); //read du nombre d'argv pour la task i
+        // printf("%lu / ", (unsigned long int)cmdArgc);
+        // cmdArgc = be32toh(cmdArgc);
+        // printf("%lu", (unsigned long int)cmdArgc);
+        // for (int j = 0; j < cmdArgc; j++) {
+        //   uint32_t stringL;
+        //   read(fd_reply, &stringL, sizeof(uint32_t));
+        //   // printf("DEBUT %lu / ", (unsigned long int)stringL);
+        //   // stringL = be32toh(stringL);
+        //   // printf("%lu FIN ", (unsigned long int)stringL);
+        //   char *bufferCmd = malloc(4);
+        //   if (bufferCmd == NULL) { goto error; }
+        //   read(fd_reply, bufferCmd, stringL);
+        //   printf("%s ", bufferCmd);
+        //   free(bufferCmd);
+        // }
+        free(t);
+        free(bufferTiming);
+      }
+      printf("\n");      
     }
     close(fd_reply);
   }
+
+  free(path_request);
+  free(path_reply);
 
   return EXIT_SUCCESS;
 
