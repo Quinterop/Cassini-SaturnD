@@ -154,11 +154,10 @@ int main(int argc, char * argv[]) {
           uint32_t stringL;
           read(fd_reply, &stringL, sizeof(uint32_t)); //read de la longueur de l'argv[i]
           stringL = be32toh(stringL);
-          char *bufferCmd = malloc(stringL);
-          if (bufferCmd == NULL) { goto error; }
+          char bufferCmd[stringL+1];
           read(fd_reply, bufferCmd, stringL); //read du contenu de l'argv[i]
+          bufferCmd[stringL] = '\0';
           printf("%s ", bufferCmd);
-          free(bufferCmd);
         }
         free(t);
         free(bufferTiming);
