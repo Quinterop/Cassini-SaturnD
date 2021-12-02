@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "client-request.h"
 #include "server-reply.h"

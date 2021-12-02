@@ -1,4 +1,5 @@
-#include "cassini.h"
+#include "../include/cassini.h"
+
 
 const char usage_info[] = "\
    usage: cassini [OPTIONS] -l -> list all tasks\n\
@@ -84,66 +85,66 @@ int main(int argc, char * argv[]) {
       goto error;
     }
   }
-  // --------
-  // | TODO |
-  // --------
 
-  if(pipes_directory==NULL){
-    char* username = getlogin();
-    char* cat = strcat("/tmp/",username);
-    pipes_directory=strcat(cat,"/saturnd/pipes");
-  }
-  char * pipe_in = NULL;
-  strcat(pipe_in, pipes_directory);
-  strcat(pipe_in, "/saturnd-request-pipe");
-  char * pipe_out = NULL;
-  strcat(pipe_out, pipes_directory);
-  strcat(pipe_out, "/saturnd-reply-pipe");
+    //Chemin par defaut des pipes
+    if(pipes_directory==NULL){
+        char *username = getlogin();
+        size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
+        char* pipes_directory = malloc(length + 1);
+        if (pipes_directory == NULL) goto error;
+        //strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
+        strcpy(pipes_directory, "/tmp/");
+        strcat(pipes_directory, username);
+        strcat(pipes_directory, "/saturnd/pipes");
+    }
+
+    char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
+    if (path_request == NULL) goto error;
+    strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
+    char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
+    if (path_reply == NULL) goto error;
+    strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
+    free(pipes_directory);
 
 
 
-if(operation==CLIENT_REQUEST_REMOVE_TASK){
-  int pipein = open(pipe_in,O_WRONLY);
-  if (pipein==-1){
-    printf("%s","erreur ouverture pipe");
-  }
-  uint16_t REQUETE = htobe16(CLIENT_REQUEST_REMOVE_TASK);
-  uint64_t TASKID = htobe64(taskid);
 
-  int wr1 = write(pipein,&REQUETE,sizeof(REQUETE));
-  int wr2 = write(pipein,&TASKID,sizeof(TASKID));
+    if(operation==CLIENT_REQUEST_REMOVE_TASK){
+    int pipein = open(path_request,O_WRONLY);
+    if (pipein==-1){ goto error; }
+    uint16_t REQUETE = htobe16(CLIENT_REQUEST_REMOVE_TASK);
+    uint64_t TASKID = htobe64(taskid);
 
-  if(wr1==-1||wr2==-1){
-    printf("%s","erreur ecriture pipe");
+    int wr1 = write(pipein,&REQUETE,sizeof(REQUETE));
+    int wr2 = write(pipein,&TASKID,sizeof(TASKID));
+
+    if(wr1==-1||wr2==-1){ goto error; }
 
     /* TODO : utiliser qu'un seul write
     char *all[]
-    write(pipe_in,all,sizeof(all));
+    write(path_request,all,sizeof(all));
     */
-  }
-  int pipeout = open(pipe_in,O_RDONLY);
-  if (pipeout==-1){
-    printf("%s","erreur ouverture pipe");
-  }
-  uint16_t RETOUR = 0;
-  int r = read(pipein,RETOUR,sizeof(RETOUR));
-  if (r==-1){
-    printf("%s","erreur lecture pipe");
-  }
-  printf("%s\n",(char*) RETOUR);
-  //pas sur
-  if (strcmp(RETOUR, "ERROR") == 0){
-    int r = read(pipein,RETOUR,sizeof(RETOUR));
-    if (r==-1){
-      printf("%s","erreur lecture pipe");
+
+    int pipeout = open(path_reply,O_RDONLY);
+    if (pipeout==-1){ goto error; }
+
+    uint16_t RETOUR = 0;
+    int r = read(pipeout,&RETOUR,sizeof(RETOUR));
+    if (r==-1){ goto error; }
+
+    printf("%s\n",(char*) &RETOUR);
+    //pas sur
+    if (strcmp(RETOUR, "ERROR") == 0){
+      int r = read(pipein,&RETOUR,sizeof(RETOUR));
+      if (r==-1){ goto error; }
+
+        printf("%s\n",(char*) RETOUR);
     }
-      printf("%s\n",(char*) RETOUR);
-  }
 
 
 
   }
-}
+
 
 
   return EXIT_SUCCESS;
@@ -152,8 +153,10 @@ if(operation==CLIENT_REQUEST_REMOVE_TASK){
 
 
  error:
-  if (errno != 0) perror("main");
+    if (errno != 0) perror("main");
   free(pipes_directory);
-  pipes_directory = NULL;
-  return EXIT_FAILURE;
+  free(path_request);
+  free(path_reply);
+    pipes_directory = NULL;
+    return EXIT_FAILURE;
 }
