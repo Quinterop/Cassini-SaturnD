@@ -1,4 +1,4 @@
-#include "../include/cassini.h"
+#include "cassini.h"
 
 const char usage_info[] = "\
    usage: cassini [OPTIONS] -l -> list all tasks\n\
@@ -18,7 +18,7 @@ const char usage_info[] = "\
    options:\n\
      -p PIPES_DIR -> look for the pipes in PIPES_DIR (default: /tmp/<USERNAME>/saturnd/pipes)\n\
 ";
-
+ 
 int main(int argc, char * argv[]) {
   errno = 0;
 
@@ -91,9 +91,65 @@ int main(int argc, char * argv[]) {
   if(pipes_directory==NULL){
     char* username = getlogin();
     char* cat = strcat("/tmp/",username);
-    pipes_directory=strcat(cat,"/saturnd/pipes");}
+    pipes_directory=strcat(cat,"/saturnd/pipes");
+  }
+  char * pipe_in = NULL;
+  strcat(pipe_in, pipes_directory);
+  strcat(pipe_in, "/saturnd-request-pipe");
+  char * pipe_out = NULL;
+  strcat(pipe_out, pipes_directory);
+  strcat(pipe_out, "/saturnd-reply-pipe");
+
+
+
+if(operation==CLIENT_REQUEST_REMOVE_TASK){
+  int pipein = open(pipe_in,O_WRONLY);
+  if (pipein==-1){
+    printf("%s","erreur ouverture pipe");
+  }
+  uint16_t REQUETE = htobe16(CLIENT_REQUEST_REMOVE_TASK);
+  uint64_t TASKID = htobe64(taskid);
+
+  int wr1 = write(pipein,&REQUETE,sizeof(REQUETE));
+  int wr2 = write(pipein,&TASKID,sizeof(TASKID));
+
+  if(wr1==-1||wr2==-1){
+    printf("%s","erreur ecriture pipe");
+
+    /* TODO : utiliser qu'un seul write
+    char *all[]
+    write(pipe_in,all,sizeof(all));
+    */
+  }
+  int pipeout = open(pipe_in,O_RDONLY);
+  if (pipeout==-1){
+    printf("%s","erreur ouverture pipe");
+  }
+  uint16_t RETOUR = 0;
+  int r = read(pipein,RETOUR,sizeof(RETOUR));
+  if (r==-1){
+    printf("%s","erreur lecture pipe");
+  }
+  printf("%s\n",(char*) RETOUR);
+  //pas sur
+  if (strcmp(RETOUR, "ERROR") == 0){
+    int r = read(pipein,RETOUR,sizeof(RETOUR));
+    if (r==-1){
+      printf("%s","erreur lecture pipe");
+    }
+      printf("%s\n",(char*) RETOUR);
+  }
+
+
+
+  }
+}
+
 
   return EXIT_SUCCESS;
+
+
+
 
  error:
   if (errno != 0) perror("main");
