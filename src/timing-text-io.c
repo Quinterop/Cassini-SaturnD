@@ -1,4 +1,4 @@
-#include "timing-text-io.h"
+#include "../include/timing-text-io.h"
 
 /* Writes the result in *dest. In case of success, returns 0. In case of failure, returns -1. */
 int timing_from_strings(struct timing * dest, char * minutes_str, char * hours_str, char * daysofweek_str) {
