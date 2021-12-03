@@ -22,12 +22,19 @@ const char usage_info[] = "\
 int main(int argc, char * argv[]) {
   errno = 0;
 
+  int fd_request;
+  int fd_reply;
+
   char * minutes_str = "*";
   char * hours_str = "*";
   char * daysofweek_str = "*";
   char * pipes_directory = NULL;
 
   uint16_t operation = CLIENT_REQUEST_LIST_TASKS;
+  uint16_t opcode;
+  uint16_t reptype;
+  uint32_t nbtasks;
+  uint32_t cmdArgc;
   uint64_t taskid;
 
   int opt;
@@ -85,7 +92,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  //Chemin par defaut des pipes
+  //Chemin par defaut du dossier des pipes
   if(pipes_directory==NULL){
     char *username = getlogin();
     size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
@@ -97,6 +104,7 @@ int main(int argc, char * argv[]) {
     strcat(pipes_directory, "/saturnd/pipes");
   }
   
+  //Chemins des request_pipe et reply_pipe
   char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
   if (path_request == NULL) goto error;
   strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
@@ -105,26 +113,17 @@ int main(int argc, char * argv[]) {
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
   free(pipes_directory);
 
+
   //Option LIST TASKS (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
-    int fd_request = open(path_request, O_WRONLY);
-    if (fd_request == -1) {
-      close(fd_request);
-      goto error;
-    }
-    uint16_t opcode = htobe16(operation);
-    write(fd_request,&opcode,sizeof(uint16_t));
+    fd_request = open(path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    opcode = htobe16(operation);
+    write(fd_request, &opcode, sizeof(uint16_t));
     close(fd_request);
 
-    int fd_reply = open(path_reply, O_RDONLY);
-    if (fd_reply == -1) {
-      close(fd_reply);
-      goto error;
-    }
-    // VARIABLES A METTRE AU DEBUT
-    uint16_t reptype;
-    uint32_t nbtasks;
-    uint32_t cmdArgc;
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; }    
     read(fd_reply, &reptype, sizeof(uint16_t));
     read(fd_reply, &nbtasks, sizeof(uint32_t));
     reptype = be16toh(reptype);
@@ -165,7 +164,23 @@ int main(int argc, char * argv[]) {
       }    
     }
     close(fd_reply);
-  }
+  } //Fin option LIST TASKS (-l)
+
+  //Option TERMINATE (-q)
+  else if(operation == CLIENT_REQUEST_TERMINATE) {
+    fd_request = open(path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    opcode = htobe16(operation);
+    write(fd_request, &opcode, sizeof(uint16_t));
+    close(fd_request);
+
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; }
+    read(fd_reply, &reptype, sizeof(uint16_t));
+    reptype = be16toh(reptype);
+    close(fd_reply);
+  } //Fin option TERMINATE (-q)
+
   free(path_request);
   free(path_reply);
 
