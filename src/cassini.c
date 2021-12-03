@@ -18,7 +18,20 @@ const char usage_info[] = "\
    options:\n\
      -p PIPES_DIR -> look for the pipes in PIPES_DIR (default: /tmp/<USERNAME>/saturnd/pipes)\n\
 ";
-
+//prend une operation et un taskid et les ecrit dans pipe_request
+void write_to_pipe(uint16_t operation, uint64_t taskid,char* path) {
+    int pipein = open(path, O_WRONLY);
+    if (pipein == -1) {}
+    uint16_t REQUETE = htobe16(operation);
+    uint64_t TASKID = htobe64(taskid);
+    write(pipein, &REQUETE, sizeof(uint16_t));
+    write(pipein, &TASKID, sizeof(uint64_t));
+    close(pipein);
+    /* TODO : utiliser qu'un seul write
+    char *all[]
+    write(path_request,all,sizeof(all));
+    */
+}
 int main(int argc, char * argv[]) {
   errno = 0;
 
@@ -166,6 +179,39 @@ int main(int argc, char * argv[]) {
     }
     close(fd_reply);
   }
+
+      if (operation == CLIENT_REQUEST_GET_STDERR){
+          write_to_pipe(operation,taskid,path_request);
+
+          int fd_reply = open(path_reply, O_RDONLY);
+          if (fd_reply == -1) {
+              close(fd_reply);
+              goto error;
+          }
+
+      }
+      if (operation == CLIENT_REQUEST_GET_STDOUT){
+          write_to_pipe(operation,taskid,path_request);
+
+          int fd_reply = open(path_reply, O_RDONLY);
+          if (fd_reply == -1) {
+              close(fd_reply);
+                oto error;
+          }
+
+        }
+   /* Réponse à STDOUT et STDERR
+    Les réponses OK et ERROR sont possibles :
+
+    Réponse OK
+    REPTYPE='OK' <uint16>, OUTPUT <string>
+
+                           Réponse ERROR
+            REPTYPE='ER' <uint16>, ERRCODE <uint16>
+    Les valeurs possibles pour ERRCODE sont :
+
+    0x4e46 ('NF') : il n'existe aucune tâche avec cet identifiant
+    0x4e52 ('NR') : la tâche n'a pas encore été exécutée au moins une fois*/
   free(path_request);
   free(path_reply);
 
