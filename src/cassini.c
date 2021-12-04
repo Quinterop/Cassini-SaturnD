@@ -22,12 +22,19 @@ const char usage_info[] = "\
 int main(int argc, char * argv[]) {
   errno = 0;
 
+  int fd_request;
+  int fd_reply;
+
   char * minutes_str = "*";
   char * hours_str = "*";
   char * daysofweek_str = "*";
   char * pipes_directory = NULL;
 
   uint16_t operation = CLIENT_REQUEST_LIST_TASKS;
+  uint16_t opcode;
+  uint16_t reptype;
+  uint32_t nbtasks;
+  uint32_t cmdArgc;
   uint64_t taskid;
 
   int opt;
@@ -85,7 +92,8 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  //Chemin par defaut des pipes
+
+  //Chemin par defaut du dossier des pipes
   if(pipes_directory==NULL){
     char *username = getlogin();
     size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
@@ -97,6 +105,7 @@ int main(int argc, char * argv[]) {
     strcat(pipes_directory, "/saturnd/pipes");
   }
   
+  //Chemins des request_pipe et reply_pipe
   char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
   if (path_request == NULL) goto error;
   strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
@@ -105,26 +114,17 @@ int main(int argc, char * argv[]) {
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
   free(pipes_directory);
 
+
   //Option LIST TASKS (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
-    int fd_request = open(path_request, O_WRONLY);
-    if (fd_request == -1) {
-      close(fd_request);
-      goto error;
-    }
-    uint16_t opcode = htobe16(operation);
-    write(fd_request,&opcode,sizeof(uint16_t));
+    fd_request = open(path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    opcode = htobe16(operation);
+    write(fd_request, &opcode, sizeof(uint16_t));
     close(fd_request);
 
-    int fd_reply = open(path_reply, O_RDONLY);
-    if (fd_reply == -1) {
-      close(fd_reply);
-      goto error;
-    }
-    // VARIABLES A METTRE AU DEBUT
-    uint16_t reptype;
-    uint32_t nbtasks;
-    uint32_t cmdArgc;
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; } 
     read(fd_reply, &reptype, sizeof(uint16_t));
     read(fd_reply, &nbtasks, sizeof(uint32_t));
     reptype = be16toh(reptype);
@@ -165,7 +165,76 @@ int main(int argc, char * argv[]) {
       }    
     }
     close(fd_reply);
-  }
+  } //Fin option LIST TASKS (-l)
+  
+  //COMMANDE REQUETE CREATE -c:
+  else if (operation == CLIENT_REQUEST_CREATE_TASK){
+    fd_request = open(path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    
+    //Ecriture de l'OPCODE (OPCODE='CR' <uint16>) :
+    opcode = htobe16(operation);
+    write(fd_request, &opcode, sizeof(uint16_t));
+   
+    //Ecriture du TIMING (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>) :
+    struct timing t; //ecrire le resultat sous forme d'une struct timing
+    int n = timing_from_strings(&t, minutes_str, hours_str, daysofweek_str);
+    if (n==-1){ goto error; }
+    uint64_t min = htobe64(t.minutes);
+    uint32_t hours = htobe32(t.hours);
+    write(fd_request,&min,sizeof(uint64_t));
+    write(fd_request,&hours,sizeof(uint32_t));
+    write(fd_request,&t.daysofweek,sizeof(uint8_t));
+   
+    //Ecriture de la COMMANDLINE (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>) :
+    if (argv[0] == NULL) { goto error; }
+    //commandline *cmd = malloc(sizeof(commandline));
+    //if(cmd==NULL) goto error;
+    if(argc<1) goto error;
+    if(argv[0]==NULL) goto error;
+    //écriture argc
+    //cmd->argc = argc;
+    //cmd->argc = htobe32(argc-optind);
+    //write(fd_request,&cmd->argc,sizeof(uint32_t));
+    cmdArgc = htobe32(argc-optind);
+    write(fd_request, &cmdArgc, sizeof(uint32_t));
+    //ecriture argv
+    // for (int i=0;i<argc;i++){
+     
+    // }
+    
+    for (int i = optind; i < argc; i++) {
+      uint32_t length = strlen(argv[i]);
+      uint32_t h = htobe32(length);
+      write(fd_request, &h, sizeof(uint32_t));
+      //char *bufferCmd = malloc(length);
+      char *bufferCmd = argv[i];
+      write(fd_request, bufferCmd, length);
+      // cmd->argv[i].contenu= argv[i];
+      // cmd->argv[i].L= strlen(argv[i]);
+      // //ecriture taille
+      // uint32_t length = cmd->argv[i].L;
+      // uint32_t h = htobe32(length);
+      // write(fd_request,&h,sizeof(uint32_t));
+      // //ecriture contenu
+      // char *c=malloc (length+1);
+      // c=cmd->argv[i].contenu;
+      // write(fd_request,c,length);
+      //free(bufferCmd);
+    }
+    //TODO faire un clean qui free tous les argv string (si on fait malloc)
+    close(fd_request);
+
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; }
+    read(fd_reply, &reptype, sizeof(uint16_t));
+    reptype = be16toh(reptype);
+    read(fd_reply, &taskid, sizeof(uint64_t));
+    taskid = be64toh(taskid);
+    printf("%" PRId64 ": ", taskid);
+    close(fd_reply);
+  } //Fin option CREATE (-c)
+
   free(path_request);
   free(path_reply);
 

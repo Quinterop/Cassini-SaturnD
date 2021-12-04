@@ -3,7 +3,7 @@
 /* Writes the result in *dest. In case of success, returns 0. In case of failure, returns -1. */
 int timing_from_strings(struct timing * dest, char * minutes_str, char * hours_str, char * daysofweek_str) {
   uint64_t field;
-  
+
   // Minutes
   if (timing_field_from_string(&field, minutes_str, 0, 59) <= 0) return -1;
   dest->minutes = field;
@@ -15,7 +15,7 @@ int timing_from_strings(struct timing * dest, char * minutes_str, char * hours_s
   // Days of the week
   if (timing_field_from_string(&field, daysofweek_str, 0, 6) <= 0) return -1;
   dest->daysofweek = (uint8_t) field;
-  
+
   return 0;
 }
 
@@ -25,7 +25,7 @@ int timing_field_from_string(uint64_t * dest, const char * string, unsigned int 
 
   if (string[pos] == 0) {
     return 0;
-    
+
   } else if (string[pos] == '*') {
     for (unsigned int i = min; i <= max; i++) {
       result <<= 1;
@@ -33,13 +33,13 @@ int timing_field_from_string(uint64_t * dest, const char * string, unsigned int 
     }
     *dest = result;
     return 1;
-    
+
   } else {
     unsigned int range_from_string_result;
     range_from_string_result = timing_range_from_string(&result, string+pos, min, max);
     if(range_from_string_result <= 0) return 0;
     pos += range_from_string_result;
-    
+
     while (string[pos] == ',') {
       pos++;
       range_from_string_result = timing_range_from_string(&result, string+pos, min, max);
@@ -47,7 +47,7 @@ int timing_field_from_string(uint64_t * dest, const char * string, unsigned int 
       pos += range_from_string_result;
     }
   }
-  
+
   *dest = result;
   return pos;
 }
@@ -64,7 +64,7 @@ int timing_range_from_string(uint64_t * dest, const char * string, unsigned int 
   uint_from_string_result = timing_uint_from_string(&start, string+pos);
   if (uint_from_string_result <= 0) return 0;
   pos += uint_from_string_result;
-  
+
   if (string[pos] == '-') {
     pos++;
     uint_from_string_result = timing_uint_from_string(&end, string+pos);
@@ -97,7 +97,7 @@ int timing_uint_from_string(unsigned long int * dest, const char * string) {
    number of characters written, *excluding* the trailing '\0'. */
 int timing_string_from_timing(char * dest, const struct timing * timing) {
   unsigned int pos = 0;
-  
+
   // Minutes
   pos += timing_string_from_field(dest+pos, 0, 59, timing->minutes);
 
@@ -106,13 +106,13 @@ int timing_string_from_timing(char * dest, const struct timing * timing) {
 
   // Hours
   pos += timing_string_from_field(dest+pos, 0, 23, timing->hours);
-  
+
   dest[pos] = ' ';
   pos++;
 
   // Days of the week
   pos += timing_string_from_field(dest+pos, 0, 6, timing->daysofweek);
-  
+
   return pos;
 }
 
@@ -121,7 +121,7 @@ int timing_string_from_field(char * dest, unsigned int min, unsigned int max, ui
   if (!(min <= max && max <= min + 63)) return 0;
 
   unsigned int pos = 0;
-    
+
   int range_active = 0;
   unsigned int range_start;
   unsigned int range_stop;
@@ -149,13 +149,13 @@ int timing_string_from_field(char * dest, unsigned int min, unsigned int max, ui
         } else {
           pos += timing_string_from_range(dest+pos, range_start, range_stop);
         }
-        
+
 	range_active = 0;
       }
     }
     mask <<= 1;
   }
-  
+
   return pos;
 }
 
