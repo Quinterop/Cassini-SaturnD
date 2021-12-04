@@ -224,14 +224,29 @@ int main(int argc, char * argv[]) {
     close(fd_reply);
   } //Fin option CREATE (-c)
 
+  //COMMANDE REQUETE GET TIMES AND EXITCODES
+  else if(operation== CLIENT_REQUEST_GET_TIMES_AND_EXITCODES){
+    //ECRITURE
+    fd_request = open (path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    //ecriture OPCODE
+    opcode =htobe16(operation);
+    write(fd_request,&opcode,sizeof(uint16_t));
+    //ecriture TASKID
+    taskid=htobe64(taskid);
+    write(fd_request,&taskid,sizeof(uint64_t));
+    close(fd_request);
+  }
 
   //Option TERMINATE (-q)
-  else if(operation == CLIENT_REQUEST_TERMINATE) {
+  else if(operation == CLIENT_REQUEST_GET_TIMES_AND_EXITCODES) {
     //ECRITURE
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
     opcode = htobe16(operation);
+    taskid = htobe64(taskid);
     write(fd_request, &opcode, sizeof(uint16_t));
+    write(fd_request, &taskid, sizeof(uint64_t));
     close(fd_request);
     
     //LECTURE
