@@ -185,20 +185,30 @@ int main(int argc, char * argv[]) {
     t.hours = htobe32(t.hours);
     write(fd_request, &t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
     //Ecriture de la COMMANDLINE (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>) :
+    if (argv[0] == NULL) {
+      goto error;
+    }
+    commandline *cmd = malloc(sizeof(commandline));
+    if(cmd==NULL) goto error;
     if(argc<1) goto error;
     if(argv[0]==NULL) goto error;
-    //Ecriture argc
-    cmdArgc = htobe32(argc-optind);
-    write(fd_request, &cmdArgc, sizeof(uint32_t));
-    //Ecriture argv
-    for (int i = optind; i < argc; i++) {
-      uint32_t length = strlen(argv[i]);
+    //écriture argc
+    cmd->argc=htobe32(argc-optind);
+    write(fd_request,cmd,sizeof(uint32_t));
+    //ecriture argv
+    for(int i=optind; i<argc; i++){
+      //ecriture taille
+      cmd->argv[i].L= strlen(argv[i]);
+      uint32_t length = cmd->argv[i].L;
       uint32_t h = htobe32(length);
-      write(fd_request, &h, sizeof(uint32_t));
-      char *bufferCmd = argv[i];
-      write(fd_request, bufferCmd, length);
+      write(fd_request,&h,sizeof(uint32_t));
+      //ecriture contenu
+      cmd->argv[i].contenu= argv[i];
+      char *ch=cmd->argv[i].contenu;
+      write(fd_request,ch,length);
     }
-    close(fd_request);
+    free(cmd);
+    close(fd_request); 
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
