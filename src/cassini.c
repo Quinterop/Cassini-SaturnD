@@ -116,14 +116,16 @@ int main(int argc, char * argv[]) {
 
   //Option LIST TASKS (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
+    //ECRITURE
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
     opcode = htobe16(operation);
     write(fd_request, &opcode, sizeof(uint16_t));
     close(fd_request);
 
+    //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
-    if (fd_reply == -1) { goto error; }    
+    if (fd_reply == -1) { goto error; } 
     read(fd_reply, &reptype, sizeof(uint16_t));
     read(fd_reply, &nbtasks, sizeof(uint32_t));
     reptype = be16toh(reptype);
@@ -166,20 +168,70 @@ int main(int argc, char * argv[]) {
     close(fd_reply);
   } //Fin option LIST TASKS (-l)
 
+
+  //COMMANDE REQUETE CREATE -c:
+  else if (operation == CLIENT_REQUEST_CREATE_TASK){
+    //ECRITURE
+    fd_request = open(path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    
+    //Ecriture de l'OPCODE (OPCODE='CR' <uint16>) :
+    opcode = htobe16(operation);
+    write(fd_request, &opcode, sizeof(uint16_t));
+    
+    //Ecriture du TIMING (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>) :
+    struct timing t; //ecrire le resultat sous forme d'une struct timing
+    int n = timing_from_strings(&t, minutes_str, hours_str, daysofweek_str);
+    if (n==-1){ goto error; }
+    t.minutes = htobe64(t.minutes);
+    t.hours = htobe32(t.hours);
+    write(fd_request, &t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
+    
+    //Ecriture de la COMMANDLINE (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>) :
+    if(argc<1) goto error;
+    if(argv[0]==NULL) goto error;
+    //Ecriture argc
+    cmdArgc = htobe32(argc-optind);
+    write(fd_request, &cmdArgc, sizeof(uint32_t));
+    //Ecriture argv
+    for (int i = optind; i < argc; i++) {
+      uint32_t length = strlen(argv[i]);
+      uint32_t h = htobe32(length);
+      write(fd_request, &h, sizeof(uint32_t));
+      char *bufferCmd = argv[i];
+      write(fd_request, bufferCmd, length);
+    }
+    close(fd_request);
+
+    //LECTURE
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; }
+    read(fd_reply, &reptype, sizeof(uint16_t));
+    reptype = be16toh(reptype);
+    read(fd_reply, &taskid, sizeof(uint64_t));
+    taskid = be64toh(taskid);
+    printf("%" PRId64 ": ", taskid);
+    close(fd_reply);
+  } //Fin option CREATE (-c)
+
+
   //Option TERMINATE (-q)
   else if(operation == CLIENT_REQUEST_TERMINATE) {
+    //ECRITURE
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
     opcode = htobe16(operation);
     write(fd_request, &opcode, sizeof(uint16_t));
     close(fd_request);
-
+    
+    //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
     read(fd_reply, &reptype, sizeof(uint16_t));
     reptype = be16toh(reptype);
     close(fd_reply);
   } //Fin option TERMINATE (-q)
+
 
   free(path_request);
   free(path_reply);
