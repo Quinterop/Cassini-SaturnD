@@ -36,6 +36,7 @@ int main(int argc, char * argv[]) {
   uint32_t nbtasks;
   uint32_t cmdArgc;
   uint64_t taskid;
+  uint16_t errcode;
 
   int opt;
   char * strtoull_endp;
@@ -111,7 +112,6 @@ int main(int argc, char * argv[]) {
   char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
   if (path_reply == NULL) goto error;
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
-  free(pipes_directory);
 
 
   //Option LIST TASKS (-l)
@@ -180,7 +180,7 @@ int main(int argc, char * argv[]) {
     write(fd_request, &opcode, sizeof(uint16_t));
     
     //Ecriture du TIMING (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>) :
-    struct timing t; //ecrire le resultat sous forme d'une struct timing
+    struct timing t;
     int n = timing_from_strings(&t, minutes_str, hours_str, daysofweek_str);
     if (n==-1){ goto error; }
     t.minutes = htobe64(t.minutes);
@@ -214,7 +214,58 @@ int main(int argc, char * argv[]) {
     close(fd_reply);
   } //Fin option CREATE (-c)
 
+    //Commande TIMES_EXITCODE (-x)
+  else if(operation== CLIENT_REQUEST_GET_TIMES_AND_EXITCODES){
+    //ECRITURE
+    fd_request = open (path_request, O_WRONLY);
+    if (fd_request == -1) { goto error; }
+    //ecriture OPCODE
+    opcode =htobe16(operation);
+    write(fd_request,&opcode,sizeof(uint16_t));
+    //ecriture TASKID
+    taskid=htobe64(taskid);
+    write(fd_request,&taskid,sizeof(uint64_t));
+    close(fd_request);
 
+    //LECTURE
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; }
+    //lecture REPTYPE(= OK' <uint16>)
+    read(fd_reply, &reptype, sizeof(uint16_t));
+    reptype = be16toh(reptype);
+    if (reptype == SERVER_REPLY_OK) {
+      //lecture NBRUNS(=N <uint32>)
+      uint32_t nbruns;
+      read(fd_reply, &nbruns, sizeof(uint32_t));
+      nbruns = be32toh(nbruns);
+      for (int i=0; i<nbruns; i++) {
+        //lecture TIME(<int64>)
+        int64_t time;
+        read(fd_reply, &time, sizeof(int64_t));
+        time = be64toh((uint64_t)time);
+        struct tm * t = localtime(&time);
+        char strBuffer[80];
+        strftime(strBuffer, 80, "%F %T", t);
+        printf("%s ", strBuffer);
+        //lecture EXITCODE(<uint16>)
+        uint16_t exitcode;
+        read(fd_reply, &exitcode, sizeof(uint16_t));
+        exitcode = be16toh(exitcode);
+        printf("%u\n", (unsigned int)exitcode);
+      }
+    //lecture ERROR
+    } else if (reptype == SERVER_REPLY_ERROR) {
+      //lecture de l'errcode
+      read(fd_reply, &errcode, sizeof(uint16_t));
+      errcode = be16toh(errcode);
+      if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
+        printf("il n'existe aucune tâche avec cet identifiant");
+        goto error;
+      }
+    }
+    close(fd_reply);
+  } 
+  
   //Option TERMINATE (-q)
   else if(operation == CLIENT_REQUEST_TERMINATE) {
     //ECRITURE
@@ -235,7 +286,7 @@ int main(int argc, char * argv[]) {
 
   free(path_request);
   free(path_reply);
-
+  free(pipes_directory);
   return EXIT_SUCCESS;
 
  error:
