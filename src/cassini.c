@@ -188,17 +188,53 @@ int main(int argc, char * argv[]) {
               close(fd_reply);
               goto error;
           }
+          uint16_t reply;
+          read(fd_reply,&reply,sizeof (uint64_t)-2);
+          reply= be16toh(reply);
+          //   printf("%d", reply);
+          if(reply==SERVER_REPLY_ERROR){
+              char* reply2= malloc(sizeof (uint64_t));
+              read(fd_reply,&reply2,sizeof (uint64_t));
+              printf("%s\n", reply2);
+          }else{
+              char reply2 [6];
+              // reply2[0]='a';
 
+              read(fd_reply,reply2,6);
+              printf("%s\n",reply2);
+              //w printf("test-1");
+
+          }
+
+          close(fd_reply);
       }
       if (operation == CLIENT_REQUEST_GET_STDOUT){
           write_to_pipe(operation,taskid,path_request);
 
           int fd_reply = open(path_reply, O_RDONLY);
           if (fd_reply == -1) {
-              close(fd_reply);
-                oto error;
+                goto error;
+          }
+          uint16_t reply;
+          read(fd_reply,&reply,sizeof (uint64_t)-2);
+          reply= be16toh(reply);
+       //   printf("%d", reply);
+          if(reply==SERVER_REPLY_ERROR){
+              char* reply2= malloc(sizeof (uint64_t));
+              read(fd_reply,&reply2,sizeof (uint64_t));
+              printf("%s\n", reply2);
+          }else{
+              char reply2 [6];
+             // reply2[0]='a';
+
+              read(fd_reply,reply2,6);
+              printf("%d",sizeof (uint64_t));
+             printf("%s\n",reply2);
+             //w printf("test-1");
+
           }
 
+          close(fd_reply);
         }
    /* Réponse à STDOUT et STDERR
     Les réponses OK et ERROR sont possibles :

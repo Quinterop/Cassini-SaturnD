@@ -11,6 +11,8 @@
 #include <fcntl.h>
 #include <endian.h>
 #include <inttypes.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #include "client-request.h"
 #include "server-reply.h"
