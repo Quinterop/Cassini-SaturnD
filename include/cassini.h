@@ -12,8 +12,6 @@
 #include <endian.h>
 #include <inttypes.h>
 #include <time.h>
-#include <sys/types.h>
-#include <pwd.h>
 
 #include "client-request.h"
 #include "server-reply.h"
