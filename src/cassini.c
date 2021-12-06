@@ -268,6 +268,25 @@ int main(int argc, char * argv[]) {
         close(fd_reply);
     }
 
+
+      if(operation==CLIENT_REQUEST_REMOVE_TASK){
+
+          write_to_pipe(operation,taskid,path_request);
+
+          int fd_reply = open(path_reply, O_RDONLY);
+          if (fd_reply == -1) {goto error;}
+
+          uint16_t reply;
+          read(fd_reply,&reply,sizeof (uint16_t));
+          reply= be16toh(reply);
+          if (reply==SERVER_REPLY_ERROR){
+              close(fd_reply);
+              return EXIT_FAILURE;
+          }else {
+              close(fd_reply);
+          }
+      }
+
     free(path_request);
     free(path_reply);
 
