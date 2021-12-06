@@ -12,6 +12,8 @@
 #include <endian.h>
 #include <inttypes.h>
 #include <time.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #include "client-request.h"
 #include "server-reply.h"
@@ -25,6 +27,9 @@ typedef struct string{
 typedef struct commandline{
     uint32_t argc;
     string argv[];
-}commandline;
+} commandline;
+
+//prend une operation et un taskid et les ecrit dans pipe_request
+int write_to_pipe(uint16_t operation, uint64_t taskid, char* path);
 
 #endif // CASSINI

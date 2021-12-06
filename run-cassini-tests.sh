@@ -44,6 +44,7 @@ normalize_output() {
 }
 
 run_test() {
+  rm -f valgrind.log
   CURDIR="$1"
   
   ARGS=()
@@ -64,7 +65,8 @@ run_test() {
   PID1=$!
   timeout $TIMEOUT cat "$PIPESDIR/$REQUEST_PIPE" > "$TMP1" &
   PID2=$!
-  timeout $TIMEOUT $CASSINI -p "$PIPESDIR" "${ARGS[@]}" > "$TMP2" 2>/dev/null
+  timeout $TIMEOUT valgrind --leak-check=full --track-origins=yes --show-reachable=yes $CASSINI -p "$PIPESDIR" "${ARGS[@]}" > "$TMP2" 2>>valgrind.log
+  #timeout $TIMEOUT $CASSINI -p "$PIPESDIR" "${ARGS[@]}" > "$TMP2" 2>/dev/null
   RES=$?
   CMD="$CASSINI -p '$PIPESDIR' ${ARGS_ESC[@]}"
 

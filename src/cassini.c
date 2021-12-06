@@ -19,11 +19,31 @@ const char usage_info[] = "\
      -p PIPES_DIR -> look for the pipes in PIPES_DIR (default: /tmp/<USERNAME>/saturnd/pipes)\n\
 ";
 
+//prend une operation et un taskid et les ecrit dans pipe_request
+int write_to_pipe(uint16_t operation, uint64_t taskid, char* path) {
+    int errW;;
+    int pipein = open(path, O_WRONLY);
+    if (pipein == -1) { return -1; }
+    uint16_t requete = htobe16(operation);
+    taskid = htobe64(taskid);
+    errW = write(pipein, &requete, sizeof(uint16_t));
+    if (errW == -1) { return -1; }
+    errW = write(pipein, &taskid, sizeof(uint64_t));
+    if (errW == -1) { return -1; }
+    close(pipein);
+    return 0;
+    /* TODO : utiliser qu'un seul write
+    char *all[]
+    write(path_request,all,sizeof(all));
+    */
+}
+
 int main(int argc, char * argv[]) {
   errno = 0;
 
   int fd_request;
   int fd_reply;
+  int errWorR;
 
   char * minutes_str = "*";
   char * hours_str = "*";
@@ -114,33 +134,42 @@ int main(int argc, char * argv[]) {
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
 
 
-  //Option LIST TASKS (-l)
+  //Commande LIST (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
     //ECRITURE
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
     opcode = htobe16(operation);
-    write(fd_request, &opcode, sizeof(uint16_t));
+    errWorR = write(fd_request, &opcode, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     close(fd_request);
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; } 
-    read(fd_reply, &reptype, sizeof(uint16_t));
-    read(fd_reply, &nbtasks, sizeof(uint32_t));
+    //lecture du reptype
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     reptype = be16toh(reptype);
+    if (reptype != SERVER_REPLY_OK) { goto error; }
+    //lecture du nombre de tasks
+    errWorR = read(fd_reply, &nbtasks, sizeof(uint32_t));
+    if (errWorR == -1) { goto error; }
     nbtasks = be32toh(nbtasks);
-    if(nbtasks != 0) {
-      for (int i = 0; i < nbtasks; i++) { //pour chaque task
-        //read du taskid
-        read(fd_reply, &taskid, sizeof(uint64_t));
+    if (nbtasks != 0) {
+      //pour chaque task
+      for (int i = 0; i < nbtasks; i++) {
+        //lecture du taskid
+        errWorR = read(fd_reply, &taskid, sizeof(uint64_t));
+        if (errWorR == -1) { goto error; }
         taskid = be64toh(taskid);
         printf("%" PRId64 ": ", taskid);
 
-        //read du timing
+        //lecture du timing
         timing *t = malloc(sizeof(timing));
         if (t == NULL) { goto error; }
-        read(fd_reply, t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
+        errWorR = read(fd_reply, t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
+        if (errWorR == -1) { goto error; }
         t->minutes = be64toh(t->minutes);
         t->hours = be32toh(t->hours);
         char *bufferTiming = malloc(TIMING_TEXT_MIN_BUFFERSIZE);
@@ -148,15 +177,18 @@ int main(int argc, char * argv[]) {
         timing_string_from_timing(bufferTiming, t);
         printf("%s ", bufferTiming);
 
-        //read de la commandline
-        read(fd_reply, &cmdArgc, sizeof(uint32_t)); //read du nombre d'argv pour la task[i]
+        //lecture de la commandline
+        errWorR = read(fd_reply, &cmdArgc, sizeof(uint32_t)); //lecture du nombre d'argv pour la task[i]
+        if (errWorR == -1) { goto error; }
         cmdArgc = be32toh(cmdArgc);
         for (int j = 0; j < cmdArgc; j++) {
           uint32_t stringL;
-          read(fd_reply, &stringL, sizeof(uint32_t)); //read de la longueur de l'argv[i]
+          errWorR = read(fd_reply, &stringL, sizeof(uint32_t)); //lecture de la longueur de l'argv[i]
+          if (errWorR == -1) { goto error; }
           stringL = be32toh(stringL);
           char bufferCmd[stringL+1];
-          read(fd_reply, bufferCmd, stringL); //read du contenu de l'argv[i]
+          errWorR = read(fd_reply, bufferCmd, stringL); //lecture du contenu de l'argv[i]
+          if (errWorR == -1) { goto error; }
           bufferCmd[stringL] = '\0';
           printf("%s ", bufferCmd);
         }
@@ -166,97 +198,227 @@ int main(int argc, char * argv[]) {
       }    
     }
     close(fd_reply);
-  } //Fin option LIST TASKS (-l)
+  } //Fin commande LIST (-l)
 
 
-  //COMMANDE REQUETE CREATE -c:
+  //Commande CREATE (-c)
   else if (operation == CLIENT_REQUEST_CREATE_TASK){
     //ECRITURE
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
     
-    //Ecriture de l'OPCODE (OPCODE='CR' <uint16>) :
+    //ecriture de l'opcode
     opcode = htobe16(operation);
-    write(fd_request, &opcode, sizeof(uint16_t));
+    errWorR = write(fd_request, &opcode, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     
-    //Ecriture du TIMING (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>) :
+    //ecriture du timing (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>)
     struct timing t;
     int n = timing_from_strings(&t, minutes_str, hours_str, daysofweek_str);
-    if (n==-1){ goto error; }
+    if (n==-1) { goto error; }
     t.minutes = htobe64(t.minutes);
     t.hours = htobe32(t.hours);
-    write(fd_request, &t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
+    errWorR = write(fd_request, &t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
+    if (errWorR == -1) { goto error; }
     
-    //Ecriture de la COMMANDLINE (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>) :
+    //ecriture de la commandline (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>)
     if(argc<1) goto error;
     if(argv[0]==NULL) goto error;
-    //Ecriture argc
+    //ecriture argc
     cmdArgc = htobe32(argc-optind);
-    write(fd_request, &cmdArgc, sizeof(uint32_t));
-    //Ecriture argv
+    errWorR = write(fd_request, &cmdArgc, sizeof(uint32_t));
+    if (errWorR == -1) { goto error; }
+    //ecriture argv
     for (int i = optind; i < argc; i++) {
       uint32_t length = strlen(argv[i]);
       uint32_t h = htobe32(length);
-      write(fd_request, &h, sizeof(uint32_t));
+      errWorR = write(fd_request, &h, sizeof(uint32_t));
+      if (errWorR == -1) { goto error; }
       char *bufferCmd = argv[i];
-      write(fd_request, bufferCmd, length);
+      errWorR = write(fd_request, bufferCmd, length);
+      if (errWorR == -1) { goto error; }
     }
     close(fd_request);
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
-    read(fd_reply, &reptype, sizeof(uint16_t));
+    //lecture du reptype
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     reptype = be16toh(reptype);
-    read(fd_reply, &taskid, sizeof(uint64_t));
+    if (reptype != SERVER_REPLY_OK) { goto error; }
+    //lecture du taskid
+    errWorR = read(fd_reply, &taskid, sizeof(uint64_t));
+    if (errWorR == -1) { goto error; }
     taskid = be64toh(taskid);
     printf("%" PRId64 ": ", taskid);
     close(fd_reply);
-  } //Fin option CREATE (-c)
+  } //Fin commande CREATE (-c)
 
-    //Commande TIMES_EXITCODE (-x)
-  else if(operation== CLIENT_REQUEST_GET_TIMES_AND_EXITCODES){
+
+  //Commande STDERR (-e)
+  else if (operation == CLIENT_REQUEST_GET_STDERR) {
     //ECRITURE
-    fd_request = open (path_request, O_WRONLY);
-    if (fd_request == -1) { goto error; }
-    //ecriture OPCODE
-    opcode =htobe16(operation);
-    write(fd_request,&opcode,sizeof(uint16_t));
-    //ecriture TASKID
-    taskid=htobe64(taskid);
-    write(fd_request,&taskid,sizeof(uint64_t));
-    close(fd_request);
+    int n = write_to_pipe(operation, taskid, path_request);
+    if (n == -1) { goto error; }
+    
+    //LECTURE
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) {goto error;}
+    //lecture du reptype
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
+    reptype = be16toh(reptype);
+    //lecture reptype ERROR
+    if (reptype == SERVER_REPLY_ERROR){
+      errWorR = read(fd_reply, &errcode, sizeof (uint16_t));
+      if (errWorR == -1) { goto error; }
+      close(fd_reply);
+      if (errcode == SERVER_REPLY_ERROR_NEVER_RUN) {
+        printf("il n'existe aucune tâche avec cet identifiant");
+        goto error;
+      } else if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
+          printf("la tâche n'a pas encore été exécutée au moins une fois");
+          goto error;
+      }
+    }
+    //lecture reptype OK
+    else if (reptype == SERVER_REPLY_OK) {
+      //lecture de la longueur de l'output
+      uint32_t stringL; 
+      errWorR = read(fd_reply, &stringL, sizeof(uint32_t));
+      if (errWorR == -1) { goto error; }
+      stringL = be32toh(stringL);
+      char bufferOutput[stringL+1];
+      //lecture du contenu de l'output
+      errWorR = read(fd_reply, bufferOutput, stringL);
+      if (errWorR == -1) { goto error; }
+      bufferOutput[stringL] = '\0';
+      printf("%s", bufferOutput);
+    }
+    close(fd_reply);
+  } //Fin commande STDERR (-e)
+
+
+  //Commande STDOUT (-o)
+  else if (operation == CLIENT_REQUEST_GET_STDOUT){
+    //ECRITURE
+    int n = write_to_pipe(operation, taskid, path_request);
+    if (n == -1) { goto error; }
+    
+    //LECTURE
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) {goto error;}
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
+    reptype= be16toh(reptype); 
+    //lecture reptype ERROR
+    if(reptype == SERVER_REPLY_ERROR){
+      read(fd_reply, &errcode, sizeof(uint16_t));
+      if (errWorR == -1) { goto error; }
+      close(fd_reply);
+      errcode = be16toh(errcode);
+      if (errcode == SERVER_REPLY_ERROR_NEVER_RUN) {
+        printf("il n'existe aucune tâche avec cet identifiant");
+        goto error;
+      } else if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
+          printf("la tâche n'a pas encore été exécutée au moins une fois");
+          goto error;
+      }
+    }
+    //lecture reptype OK 
+    else if (reptype == SERVER_REPLY_OK) {
+      //lecture de la longueur de l'output
+      uint32_t stringL; 
+      errWorR = read(fd_reply, &stringL, sizeof(uint32_t));
+      if (errWorR == -1) { goto error; }
+      stringL = be32toh(stringL);
+      char bufferOutput[stringL+1];
+      //lecture du contenu de l'output
+      errWorR = read(fd_reply, bufferOutput, stringL);
+      if (errWorR == -1) { goto error; }
+      bufferOutput[stringL] = '\0';
+      printf("%s", bufferOutput);
+    }
+    close(fd_reply);
+  } //Fin commande STDOUT (-o)
+
+
+  //Commande REMOVE (-r)
+  else if (operation == CLIENT_REQUEST_REMOVE_TASK) {
+    //ECRITURE de l'opcode et du taskid
+    int n = write_to_pipe(operation, taskid, path_request);
+    if (n == -1) { goto error; }
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
-    //lecture REPTYPE(= OK' <uint16>)
-    read(fd_reply, &reptype, sizeof(uint16_t));
+    //lecture du reptype
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     reptype = be16toh(reptype);
+    if (reptype == SERVER_REPLY_ERROR) {
+      //lecture de l'errcode
+      errWorR = read(fd_reply, &errcode, sizeof(uint16_t));
+      if (errWorR == -1) { goto error; }
+      close(fd_reply);
+      errcode = be16toh(errcode);
+      if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
+        printf("il n'existe aucune tâche avec cet identifiant");
+        goto error;
+      }
+    } else if (reptype != SERVER_REPLY_OK) { //Si ce n'est ni ERROR ni OK alors erreur
+        close(fd_reply);
+        goto error; 
+    }
+    close(fd_reply);
+  } //Fin commande REMOVE (-r)
+  
+
+  //Commande TIMES_EXITCODE (-x)
+  else if (operation == CLIENT_REQUEST_GET_TIMES_AND_EXITCODES){
+    //ECRITURE de l'opcode et du taskid
+    int n = write_to_pipe(operation, taskid, path_request);
+    if (n == -1) { goto error; }
+    
+    //LECTURE
+    fd_reply = open(path_reply, O_RDONLY);
+    if (fd_reply == -1) { goto error; }
+    //lecture du reptype
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
+    reptype = be16toh(reptype);
+    //lecture reptype OK
     if (reptype == SERVER_REPLY_OK) {
-      //lecture NBRUNS(=N <uint32>)
+      //lecture du nombre de runs
       uint32_t nbruns;
-      read(fd_reply, &nbruns, sizeof(uint32_t));
+      errWorR = read(fd_reply, &nbruns, sizeof(uint32_t));
+      if (errWorR == -1) { goto error; }
       nbruns = be32toh(nbruns);
-      for (int i=0; i<nbruns; i++) {
-        //lecture TIME(<int64>)
+      for (int i=0; i<nbruns; i++) { //pour chaque run
+        //lecture de la date et heure du run
         int64_t time;
-        read(fd_reply, &time, sizeof(int64_t));
+        errWorR = read(fd_reply, &time, sizeof(int64_t));
+        if (errWorR == -1) { goto error; }
         time = be64toh((uint64_t)time);
         struct tm * t = localtime(&time);
         char strBuffer[80];
         strftime(strBuffer, 80, "%F %T", t);
         printf("%s ", strBuffer);
-        //lecture EXITCODE(<uint16>)
+        //lecture de l'exitcode du run
         uint16_t exitcode;
-        read(fd_reply, &exitcode, sizeof(uint16_t));
+        errWorR = read(fd_reply, &exitcode, sizeof(uint16_t));
+        if (errWorR == -1) { goto error; }
         exitcode = be16toh(exitcode);
         printf("%u\n", (unsigned int)exitcode);
       }
-    //lecture ERROR
+    //lecture reptype ERROR
     } else if (reptype == SERVER_REPLY_ERROR) {
       //lecture de l'errcode
-      read(fd_reply, &errcode, sizeof(uint16_t));
+      errWorR = read(fd_reply, &errcode, sizeof(uint16_t));
+      if (errWorR == -1) { goto error; }
+      close(fd_reply);
       errcode = be16toh(errcode);
       if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
         printf("il n'existe aucune tâche avec cet identifiant");
@@ -272,15 +434,18 @@ int main(int argc, char * argv[]) {
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
     opcode = htobe16(operation);
-    write(fd_request, &opcode, sizeof(uint16_t));
+    errWorR = write(fd_request, &opcode, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     close(fd_request);
     
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
-    read(fd_reply, &reptype, sizeof(uint16_t));
-    reptype = be16toh(reptype);
+    errWorR = read(fd_reply, &reptype, sizeof(uint16_t));
+    if (errWorR == -1) { goto error; }
     close(fd_reply);
+    reptype = be16toh(reptype);
+    if (reptype != SERVER_REPLY_OK) { goto error; }
   } //Fin option TERMINATE (-q)
 
 
@@ -289,11 +454,11 @@ int main(int argc, char * argv[]) {
   free(pipes_directory);
   return EXIT_SUCCESS;
 
- error:
-  if (errno != 0) perror("main");
-  free(pipes_directory);
-  free(path_request);
-  free(path_reply);
-  pipes_directory = NULL;
-  return EXIT_FAILURE;
+  error:
+    if (errno != 0) perror("main");
+    if(pipes_directory) { free(pipes_directory); }
+    if(path_request) { free(path_request); }
+    if(path_reply) { free(path_reply); }
+    pipes_directory = NULL;
+    return EXIT_FAILURE;
 }
