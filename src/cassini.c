@@ -294,9 +294,13 @@ int main(int argc, char * argv[]) {
 
     error:
     if (errno != 0) perror("main");
-    free(pipes_directory);
-    free(path_request);
-    free(path_reply);
+    if(pipes_directory)
+        free(pipes_directory);
+    if(path_request)
+        free(path_request);
+    if(path_reply)
+        free(path_reply);
     pipes_directory = NULL;
     return EXIT_FAILURE;
+}
 }
