@@ -181,32 +181,36 @@ int main(int argc, char * argv[]) {
     }
 
     if (operation == CLIENT_REQUEST_GET_STDERR){
+        //écriture dans le pipe
+
         write_to_pipe(operation,taskid,path_request);
 
+//lecture du code
 
         int fd_reply = open(path_reply, O_RDONLY);
         if (fd_reply == -1) {goto error;}
         uint16_t reply;
         read(fd_reply,&reply,sizeof (uint16_t));
         reply= be16toh(reply);
-        //printf("%" PRIu16 "\n",reply);
         if(reply==SERVER_REPLY_ERROR){
             read(fd_reply,&reply,sizeof (uint16_t));
-
-            if(reply==SERVER_REPLY_ERROR_NEVER_RUN) {
-                printf("programme jamais lancé");
+            //lecture et affichage de la réponse ou arret si erreur
+            if(reply==SERVER_REPLY_ERROR){
                 return EXIT_FAILURE;
+                read(fd_reply,&reply,sizeof (uint16_t));
+                if(reply==SERVER_REPLY_ERROR_NEVER_RUN) {
+                    return EXIT_FAILURE;
 
-            }if(reply==SERVER_REPLY_ERROR_NOT_FOUND){
-                printf("programme non trouvé");
-                return EXIT_FAILURE;
+                }if(reply==SERVER_REPLY_ERROR_NOT_FOUND){
+                    printf("programme non trouvé");
+                    return EXIT_FAILURE;
+
+                }
             }
         }else{
             char trash[4];
             char reply2 [1024];
-            // reply2[0]='a';
             read(fd_reply,trash,4);
-            //printf("%s\n",trash);
 
             read(fd_reply,reply2,1024);
             char replyfin[1024];
@@ -217,23 +221,22 @@ int main(int argc, char * argv[]) {
                 replyfin[i]=reply2[i];
             }
             printf("%s\n",replyfin);
-            //w printf("test-1");
-
         }
 
         close(fd_reply);
     }
 
     if (operation == CLIENT_REQUEST_GET_STDOUT){
-
+//écriture dans le pipe
         write_to_pipe(operation,taskid,path_request);
 
-
+//lecture du code
         int fd_reply = open(path_reply, O_RDONLY);
         if (fd_reply == -1) {goto error;}
         uint16_t reply;
         read(fd_reply,&reply,sizeof (uint16_t));
         reply= be16toh(reply);
+ //lecture et affichage de la réponse ou arret si erreur
         if(reply==SERVER_REPLY_ERROR){
             return EXIT_FAILURE;
             read(fd_reply,&reply,sizeof (uint16_t));
@@ -264,18 +267,7 @@ int main(int argc, char * argv[]) {
 
         close(fd_reply);
     }
-    /* Réponse à STDOUT et STDERR
-     Les réponses OK et ERROR sont possibles :
 
-     Réponse OK
-     REPTYPE='OK' <uint16>, OUTPUT <string>
-
-                            Réponse ERROR
-             REPTYPE='ER' <uint16>, ERRCODE <uint16>
-     Les valeurs possibles pour ERRCODE sont :
-
-     0x4e46 ('NF') : il n'existe aucune tâche avec cet identifiant
-     0x4e52 ('NR') : la tâche n'a pas encore été exécutée au moins une fois*/
     free(path_request);
     free(path_reply);
 
