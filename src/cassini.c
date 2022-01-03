@@ -20,23 +20,22 @@ const char usage_info[] = "\
 ";
 
 //prend un operation et l'ecrit dans le pipe request
-int write_op_to_pipe(uint16_t operation, char *path) {
+void write_op_to_pipe(uint16_t operation, char *path_request, char *path_reply) {
   int errW;
-  int fd_request = open(path, O_WRONLY);
-  if (fd_request == -1) { return 0; }
+  int fd_request = open(path_request, O_WRONLY);
+  if (fd_request == -1) { free_and_exit(path_request, path_reply); }
   uint16_t opcode = htobe16(operation);
   errW = write(fd_request, &opcode, sizeof(uint16_t));
-  if (errW == -1) { return 0; }
+  if (errW == -1) { free_and_exit(path_request, path_reply); }
   close(fd_request);
-  return 1;
 }
 
 
 //prend une operation et un taskid et les ecrit dans le pipe request
-int write_op_taskid_to_pipe(uint16_t operation, uint64_t taskid, char* path) {
+void write_op_taskid_to_pipe(uint16_t operation, uint64_t taskid, char* path_request, char *path_reply) {
   int errW;
-  int fd_request = open(path, O_WRONLY);
-  if (fd_request == -1) { return 0; }
+  int fd_request = open(path_request, O_WRONLY);
+  if (fd_request == -1) { free_and_exit(path_request, path_reply); }
   uint16_t requete = htobe16(operation);
   taskid = htobe64(taskid);
 
@@ -45,27 +44,26 @@ int write_op_taskid_to_pipe(uint16_t operation, uint64_t taskid, char* path) {
   memmove(buffer,&requete,sizeof(uint16_t));
   memmove(buffer+sizeof(uint16_t),&taskid,sizeof(uint64_t));
   errW = write(fd_request, buffer, buffer_size);
-  if (errW == -1) { return 0; }
+  if (errW == -1) { free_and_exit(path_request, path_reply); }
   close(fd_request);
-  return 1;
 }
 
 
 //renvoie le reptype lu, ou -1
-uint16_t read_reptype(int fd_reply, char *path_reply) {
+uint16_t read_reptype(int fd_reply, char *path_reply, char *path_request) {
   uint16_t reptype;
   int err = read(fd_reply, &reptype, sizeof(uint16_t));
-  if (err == -1) { return -1; }
+  if (err == -1) { free_and_exit(path_request, path_reply); }
   reptype = be16toh(reptype);
   return reptype;
 }
 
 
 //renvoie l'errcode lu, ou -1
-uint16_t read_errcode(int fd_reply, char *path_reply) {
+uint16_t read_errcode(int fd_reply, char *path_reply, char *path_request) {
   uint16_t errcode;
   int err = read(fd_reply, &errcode, sizeof(uint16_t));
-  if (err == -1) { return -1; }
+  if (err == -1) { free_and_exit(path_request, path_reply); }
   close(fd_reply);
   errcode = be16toh(errcode);
   return errcode;
@@ -73,23 +71,21 @@ uint16_t read_errcode(int fd_reply, char *path_reply) {
 
 
 //lecture pour les options e et o (reptype OK ou ERROR)
-int read_reptype_e_o(char *path_reply) {
+int read_reptype_e_o(char *path_reply, char *path_request) {
   int fd_reply = open(path_reply, O_RDONLY);
-  if (fd_reply == -1) { return 0;}
+  if (fd_reply == -1) { return 0; }
   //lecture du reptype
-  uint16_t reptype = read_reptype(fd_reply, path_reply);
-  if (reptype == -1) { return 0; }
+  uint16_t reptype = read_reptype(fd_reply, path_reply, path_request);
   //lecture pour reptype ERROR
   if (reptype == SERVER_REPLY_ERROR){
-    uint16_t errcode = read_errcode(fd_reply, path_reply);
-    if (errcode == -1) { return 0; }
+    uint16_t errcode = read_errcode(fd_reply, path_reply, path_request);
     if (errcode == SERVER_REPLY_ERROR_NEVER_RUN) {
       printf("il n'existe aucune tâche avec cet identifiant");
       return 0;
     } else if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
-        printf("la tâche n'a pas encore été exécutée au moins une fois");
-        return 0;
-    }
+      printf("la tâche n'a pas encore été exécutée au moins une fois");
+      return 0;
+    } else { return 0; }
   }
   //lecture pour reptype OK
   else if (reptype == SERVER_REPLY_OK) {
@@ -110,13 +106,10 @@ int read_reptype_e_o(char *path_reply) {
 }
 
 
-
 //free les espaces memoire alloues et return EXIT_FAILURE
-int error_and_free(char *pipes_directory, char *path_request, char *path_reply) {
-  free(pipes_directory);
-  free(path_request);
-  free(path_reply);
-  pipes_directory = NULL;
+int free_and_exit(char *path_request, char *path_reply) {
+  if (!path_request) { free(path_request); }
+  if (!path_reply) { free(path_reply); }
   path_request = NULL;
   path_reply = NULL;
   return EXIT_FAILURE;
@@ -217,20 +210,19 @@ int main(int argc, char * argv[]) {
   char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
   if (path_reply == NULL) goto error;
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
-  
+  free(pipes_directory);
+
 
   //Commande LIST (-l)
   if(operation == CLIENT_REQUEST_LIST_TASKS) {
     //ECRITURE
-    err = write_op_to_pipe(operation, path_request);
-    if (!err) { goto error; }
+    write_op_to_pipe(operation, path_request, path_reply);
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; } 
     //lecture du reptype
-    reptype = read_reptype(fd_reply, path_reply);
-    if (reptype == -1) { goto error; }
+    reptype = read_reptype(fd_reply, path_reply, path_request);
     if (reptype != SERVER_REPLY_OK) { goto error; }
     //lecture du nombre de tasks
     err = read(fd_reply, &nbtasks, sizeof(uint32_t));
@@ -286,11 +278,12 @@ int main(int argc, char * argv[]) {
     //ECRITURE
     fd_request = open(path_request, O_WRONLY);
     if (fd_request == -1) { goto error; }
+    char buffer[1024];
     
     //ecriture de l'opcode
+    int buffer_size = sizeof(uint16_t);
     opcode = htobe16(operation);
-    err = write(fd_request, &opcode, sizeof(uint16_t));
-    if (err == -1) { goto error; }
+    memmove(buffer,&opcode,sizeof(uint16_t));
     
     //ecriture du timing (MINUTES <uint64>, HOURS <uint32>, DAYSOFWEEK <uint8>)
     struct timing t;
@@ -298,35 +291,34 @@ int main(int argc, char * argv[]) {
     if (n==-1) { goto error; }
     t.minutes = htobe64(t.minutes);
     t.hours = htobe32(t.hours);
-    err = write(fd_request, &t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
-    if (err == -1) { goto error; }
+    memmove(buffer+buffer_size, &t, sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t));
+    buffer_size += sizeof(uint64_t)+sizeof(uint32_t)+sizeof(uint8_t);
     
     //ecriture de la commandline (ARGC <uint32>, ARGV[0] <string>, ..., ARGV[ARGC-1] <string>)
     if(argc<1) goto error;
     if(argv[0]==NULL) goto error;
     //ecriture argc
     cmdArgc = htobe32(argc-optind);
-    err = write(fd_request, &cmdArgc, sizeof(uint32_t));
-    if (err == -1) { goto error; }
+    memmove(buffer+buffer_size, &cmdArgc, sizeof(uint32_t));
+    buffer_size += sizeof(uint32_t);
     //ecriture argv
     for (int i = optind; i < argc; i++) {
       uint32_t length = strlen(argv[i]);
       uint32_t h = htobe32(length);
-      err = write(fd_request, &h, sizeof(uint32_t));
-      if (err == -1) { goto error; }
+      memmove(buffer+buffer_size, &h, sizeof(uint32_t));
       char *bufferCmd = argv[i];
-      err = write(fd_request, bufferCmd, length);
-      if (err == -1) { goto error; }
+      memmove(buffer+buffer_size+sizeof(uint32_t), bufferCmd, length);
+      buffer_size += sizeof(uint32_t)+length;
     }
+    err = write(fd_request, buffer, buffer_size);
+    if (err == -1) { goto error; }
     close(fd_request);
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
     //lecture du reptype
-    err = read(fd_reply, &reptype, sizeof(uint16_t));
-    if (err == -1) { goto error; }
-    reptype = be16toh(reptype);
+    reptype = read_reptype(fd_reply, path_reply, path_request);
     if (reptype != SERVER_REPLY_OK) { goto error; }
     //lecture du taskid
     err = read(fd_reply, &taskid, sizeof(uint64_t));
@@ -340,11 +332,10 @@ int main(int argc, char * argv[]) {
   //Commande STDERR (-e)
   else if (operation == CLIENT_REQUEST_GET_STDERR) {
     //ECRITURE
-    err = write_op_taskid_to_pipe(operation, taskid, path_request);
-    if (!err) { goto error; }
+    write_op_taskid_to_pipe(operation, taskid, path_request, path_reply);
     
     //LECTURE
-    err = read_reptype_e_o(path_reply);
+    err = read_reptype_e_o(path_reply, path_request);
     if (!err) { goto error; }
   } //Fin commande STDERR (-e)
 
@@ -352,11 +343,10 @@ int main(int argc, char * argv[]) {
   //Commande STDOUT (-o)
   else if (operation == CLIENT_REQUEST_GET_STDOUT){
     //ECRITURE
-    err = write_op_taskid_to_pipe(operation, taskid, path_request);
-    if (!err) { goto error; }
-    
+    write_op_taskid_to_pipe(operation, taskid, path_request, path_reply);
+   
     //LECTURE
-    err = read_reptype_e_o(path_reply);
+    err = read_reptype_e_o(path_reply, path_request);
     if (!err) { goto error; }
   } //Fin commande STDOUT (-o)
 
@@ -364,20 +354,17 @@ int main(int argc, char * argv[]) {
   //Commande REMOVE (-r)
   else if (operation == CLIENT_REQUEST_REMOVE_TASK) {
     //ECRITURE de l'opcode et du taskid
-    err = write_op_taskid_to_pipe(operation, taskid, path_request);
-    if (!err) { goto error; }
+    write_op_taskid_to_pipe(operation, taskid, path_request, path_reply);
 
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
     //lecture du reptype
-    reptype = read_reptype(fd_reply, path_reply);
-    if (reptype == -1) { goto error; }
+    reptype = read_reptype(fd_reply, path_reply, path_request);
     if (reptype == SERVER_REPLY_ERROR) {
       //lecture de l'errcode
-      errcode = read_errcode(fd_reply, path_reply);
-      if (errcode == -1) { goto error; }
-      else if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
+      errcode = read_errcode(fd_reply, path_reply, path_request);
+      if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
         printf("il n'existe aucune tâche avec cet identifiant");
         goto error;
       }
@@ -392,15 +379,13 @@ int main(int argc, char * argv[]) {
   //Commande TIMES_EXITCODE (-x)
   else if (operation == CLIENT_REQUEST_GET_TIMES_AND_EXITCODES){
     //ECRITURE de l'opcode et du taskid
-    err = write_op_taskid_to_pipe(operation, taskid, path_request);
-    if (!err) { goto error; }
+    write_op_taskid_to_pipe(operation, taskid, path_request, path_reply);
     
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
     //lecture du reptype
-    reptype = read_reptype(fd_reply, path_reply);
-    if (reptype == -1) { goto error; }
+    reptype = read_reptype(fd_reply, path_reply, path_request);
     //lecture pour reptype OK
     if (reptype == SERVER_REPLY_OK) {
       //lecture du nombre de runs
@@ -428,9 +413,8 @@ int main(int argc, char * argv[]) {
     //lecture pour reptype ERROR
     } else if (reptype == SERVER_REPLY_ERROR) {
       //lecture de l'errcode
-      errcode = read_errcode(fd_reply, path_reply);
-      if (errcode == -1) { goto error; }
-      else if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
+      errcode = read_errcode(fd_reply, path_reply, path_request);
+      if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
         printf("il n'existe aucune tâche avec cet identifiant");
         goto error;
       }
@@ -438,18 +422,17 @@ int main(int argc, char * argv[]) {
     close(fd_reply);
   } //Fin commande TIMES_EXITCODE (-x)
   
+
   //Option TERMINATE (-q)
   else if(operation == CLIENT_REQUEST_TERMINATE) {
     //ECRITURE
-    err = write_op_to_pipe(operation, path_request);
-    if (!err) { goto error; }
+    write_op_to_pipe(operation, path_request, path_reply);
     
     //LECTURE
     fd_reply = open(path_reply, O_RDONLY);
     if (fd_reply == -1) { goto error; }
     //lecture du reptype
-    reptype = read_reptype(fd_reply, path_reply);
-    if (reptype == -1) { goto error; }
+    reptype = read_reptype(fd_reply, path_reply, path_request);
     close(fd_reply);
     if (reptype != SERVER_REPLY_OK) { goto error; }
   } //Fin option TERMINATE (-q)
@@ -457,14 +440,11 @@ int main(int argc, char * argv[]) {
 
   free(path_request);
   free(path_reply);
-  free(pipes_directory);
   return EXIT_SUCCESS;
 
   error:
     if (errno != 0) perror("main");
-    free(pipes_directory);
-    free(path_request);
-    free(path_reply);
-    pipes_directory = NULL;
+    if (!path_request) { free(path_request); }
+    if (!path_reply) { free(path_reply); }
     return EXIT_FAILURE;
 }
