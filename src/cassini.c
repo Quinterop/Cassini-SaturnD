@@ -71,9 +71,9 @@ uint16_t read_errcode(int fd_reply, char *path_reply, char *path_request) {
 
 
 //lecture pour les options e et o (reptype OK ou ERROR)
-int read_reptype_e_o(char *path_reply, char *path_request) {
+void read_reptype_e_o(char *path_reply, char *path_request) {
   int fd_reply = open(path_reply, O_RDONLY);
-  if (fd_reply == -1) { return 0; }
+  if (fd_reply == -1) { free_and_exit(path_request, path_reply); }
   //lecture du reptype
   uint16_t reptype = read_reptype(fd_reply, path_reply, path_request);
   //lecture pour reptype ERROR
@@ -81,38 +81,37 @@ int read_reptype_e_o(char *path_reply, char *path_request) {
     uint16_t errcode = read_errcode(fd_reply, path_reply, path_request);
     if (errcode == SERVER_REPLY_ERROR_NEVER_RUN) {
       printf("il n'existe aucune tâche avec cet identifiant");
-      return 0;
+      free_and_exit(path_request, path_reply);
     } else if (errcode == SERVER_REPLY_ERROR_NOT_FOUND) {
       printf("la tâche n'a pas encore été exécutée au moins une fois");
-      return 0;
-    } else { return 0; }
+      free_and_exit(path_request, path_reply);
+    } else { free_and_exit(path_request, path_reply); }
   }
   //lecture pour reptype OK
   else if (reptype == SERVER_REPLY_OK) {
     //lecture de la longueur de l'output
     uint32_t stringL; 
     int err = read(fd_reply, &stringL, sizeof(uint32_t));
-    if (err == -1) { return 0; }
+    if (err == -1) { free_and_exit(path_request, path_reply); }
     stringL = be32toh(stringL);
     char bufferOutput[stringL+1];
     //lecture du contenu de l'output
     err = read(fd_reply, bufferOutput, stringL);
-    if (err == -1) { return 0; }
+    if (err == -1) { free_and_exit(path_request, path_reply); }
     bufferOutput[stringL] = '\0';
     printf("%s", bufferOutput);
   }
   close(fd_reply);
-  return 1;
 }
 
 
 //free les espaces memoire alloues et return EXIT_FAILURE
 int free_and_exit(char *path_request, char *path_reply) {
-  if (!path_request) { free(path_request); }
-  if (!path_reply) { free(path_reply); }
+  free(path_request);
+  free(path_reply);
   path_request = NULL;
   path_reply = NULL;
-  return EXIT_FAILURE;
+  exit( EXIT_FAILURE );
 }
 
 
@@ -210,6 +209,7 @@ int main(int argc, char * argv[]) {
   char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
   if (path_reply == NULL) goto error;
   strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
+  
   free(pipes_directory);
 
 
@@ -335,8 +335,7 @@ int main(int argc, char * argv[]) {
     write_op_taskid_to_pipe(operation, taskid, path_request, path_reply);
     
     //LECTURE
-    err = read_reptype_e_o(path_reply, path_request);
-    if (!err) { goto error; }
+    read_reptype_e_o(path_reply, path_request);
   } //Fin commande STDERR (-e)
 
 
@@ -346,8 +345,7 @@ int main(int argc, char * argv[]) {
     write_op_taskid_to_pipe(operation, taskid, path_request, path_reply);
    
     //LECTURE
-    err = read_reptype_e_o(path_reply, path_request);
-    if (!err) { goto error; }
+    read_reptype_e_o(path_reply, path_request);
   } //Fin commande STDOUT (-o)
 
 
@@ -418,6 +416,7 @@ int main(int argc, char * argv[]) {
         printf("il n'existe aucune tâche avec cet identifiant");
         goto error;
       }
+      
     }
     close(fd_reply);
   } //Fin commande TIMES_EXITCODE (-x)
@@ -444,7 +443,7 @@ int main(int argc, char * argv[]) {
 
   error:
     if (errno != 0) perror("main");
-    if (!path_request) { free(path_request); }
-    if (!path_reply) { free(path_reply); }
+    free(path_request);
+    free(path_reply);
     return EXIT_FAILURE;
 }
