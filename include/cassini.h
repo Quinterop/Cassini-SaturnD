@@ -12,6 +12,7 @@
 #include <endian.h>
 #include <inttypes.h>
 #include <time.h>
+#include <poll.h>
 
 #include "client-request.h"
 #include "server-reply.h"
