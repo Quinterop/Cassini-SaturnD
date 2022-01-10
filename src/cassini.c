@@ -335,7 +335,7 @@ int main(int argc, char * argv[]) {
   if(pipes_directory==NULL){
     char *username = getlogin();
     size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
-    char* pipes_directory = malloc(length + 1);
+    pipes_directory = malloc(length + 1);
     if (pipes_directory == NULL) goto error;
     //strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
     strcpy(pipes_directory, "/tmp/");
