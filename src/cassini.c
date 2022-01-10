@@ -333,9 +333,9 @@ int main(int argc, char * argv[]) {
 
   //Chemin par defaut du dossier des pipes
   if(pipes_directory==NULL){
-    char *username = getlogin();
+    char *username = getpwuid(getuid())->pw_name;
     size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
-    char* pipes_directory = malloc(length + 1);
+    pipes_directory = malloc(length + 1);
     if (pipes_directory == NULL) goto error;
     //strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
     strcpy(pipes_directory, "/tmp/");

@@ -23,8 +23,7 @@ int create_daemon() {
         sleep(1); //le temps que le père meure
         if (getppid() == 1) {
             printf("daemon crée \n");
-            int er = setsid(); //todo check erreur
-            if (er == -1) {
+            if (setsid() == -1) {
                 exit(1);
             }
             printf("PID : %d\nce terminal peut etre fermé\n", getpid());
