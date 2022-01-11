@@ -250,15 +250,6 @@ void read_times_exitcode(char *path_reply, char *path_request) {
 }
 
 
-//free les espaces memoire alloues et return EXIT_FAILURE
-int free_and_exit(char *path_request, char *path_reply) {
-  free(path_request);
-  free(path_reply);
-  path_request = NULL;
-  path_reply = NULL;
-  exit( EXIT_FAILURE );
-}
-
 
 int main(int argc, char * argv[]) {
   errno = 0;
@@ -333,23 +324,12 @@ int main(int argc, char * argv[]) {
 
   //Chemin par defaut du dossier des pipes
   if(pipes_directory==NULL){
-    char *username = getpwuid(getuid())->pw_name;
-    size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
-    pipes_directory = malloc(length + 1);
-    if (pipes_directory == NULL) goto error;
-    //strcat(strcat(strcpy(pipes_directory, "/tmp/"), username), "/saturnd/pipes");
-    strcpy(pipes_directory, "/tmp/");
-    strcat(pipes_directory, username);
-    strcat(pipes_directory, "/saturnd/pipes");
+    pipes_directory = init_path();
   }
   
   //Chemins des request_pipe et reply_pipe
-  char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
-  if (path_request == NULL) goto error;
-  strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
-  char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
-  if (path_reply == NULL) goto error;
-  strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
+  char *path_request = init_path_request(pipes_directory);
+  char *path_reply = init_path_reply(pipes_directory);
   
   free(pipes_directory);
 

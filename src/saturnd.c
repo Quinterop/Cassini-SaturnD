@@ -1,56 +1,26 @@
 #include "../include/cassini.h"
-/*
-//assignation du répertoire par défaut des pipes
-char *username = getlogin();
-char *pipes_directory = "/tmp/<USERNAME>/saturnd/pipes";
-size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
-char* pipes_directory = malloc(length + 1);
-strcpy(pipes_directory, "/tmp/");
-strcat(pipes_directory, username);
-strcat(pipes_directory, "/saturnd/pipes");
-char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
-if (path_request == NULL) goto error;
-strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
-char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
-if (path_reply == NULL) goto error;
-strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");*/
 
-int create_daemon() {
+
+void create_daemon() {
     int pid = fork();
-    if (pid == -1) {
-        exit(EXIT_FAILURE);
-    } 
-    if(pid!=0) exit(EXIT_SUCCESS);
-    pid = fork();
-    if (pid == -1) {
-        exit(EXIT_FAILURE);
-    } 
-    //if(pid!=0) exit(EXIT_SUCCESS);
-    else if (pid == 0) {
-        sleep(1); //le temps que le père meure*/
-        if (getppid() !=0) {
-            printf("daemon crée \n");
-            if (setsid() == -1) {
-                exit(1);
-            }
-            printf("PID : %d\nce terminal peut etre fermé\n", getpid());
-            close(STDIN_FILENO);
-            close(STDOUT_FILENO);
-            close(STDERR_FILENO);
-            //nécessaire ?
-            //todo log
-        } else {
-            printf("error %d\n", getppid());
+    if (pid == -1) { exit(EXIT_FAILURE); }
+    else if (pid != 0) { exit(EXIT_SUCCESS); } 
+    else { 
+        pid = fork();
+        if (pid == -1) { exit(EXIT_FAILURE); }
+        else if (pid != 0) { exit(EXIT_SUCCESS); }
+        else {
+            if (setsid() < 0) { exit(EXIT_FAILURE); }
+            printf("PID : %d Ce terminal peut etre fermé\n", getpid());
+            printf("PPID : %d Ce terminal peut etre fermé\n", getppid());
+            printf("demon cree !");
         }
-        return 0;
-    } else {
-        //pere a tuer
-        printf("pid pere = %d\n",getpid());
-        exit(0);
-        printf("pere mort \n");
-        //envoyer un signal a catch avec le fils pour confirmer ?
     }
 }
+
+
+
+
 /*
 int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
     int fd_reply = open(path_reply,O_WRONLY);
@@ -68,8 +38,14 @@ int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
 
 /*
 void read_from_pipes() {
+    int fd_request = open(path_request, O_RDONLY); //ou mettre le close ?
+    struct pollfd pfd[1];
+    pfd[0].fd = fd_request;
+    //pfd[0].events=POLLIN;
+
     while (1) { //boucle nécéssaire ?
-        int fd_request = open(path_request, O_RDONLY); //ou mettre le close ?
+        poll(pfd,1,1000);
+        if (pfd[0].revents & POLLIN){
         //test err
         uint16_t request;
         int rd = read(fd_request, &request, sizeof(uint16_t));
@@ -103,12 +79,14 @@ void read_from_pipes() {
 }
 */
 int main() {
-    create_daemon() ;
-    while (1){}
+    char *path_request = init_path_request(init_path());
+    char *path_reply = init_path_reply(init_path());
+    if (mkfifo(path_request,0666) == -1) { exit(EXIT_FAILURE); }
+    if (mkfifo(path_reply,0666) == -1) { exit(EXIT_FAILURE); }
+
+    create_daemon();
+    while (1){ }
     //read_from_pipes();
     printf("zzzz\n");
     exit(0);
-
-    //error:
 }
-
