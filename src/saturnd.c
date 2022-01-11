@@ -2,34 +2,25 @@
 
 
 
-int create_daemon() {
-    printf("Hello");
+void create_daemon() {
     int pid = fork();
-    if (pid == -1) {
-        exit(1);
-    } else if (pid == 0) {
-        sleep(1); //le temps que le père meure
-        if (getppid() == 1) {
-            printf("daemon crée \n");
-            if (setsid() == -1) {
-                exit(1);
-            }
-            printf("PID : %d\nce terminal peut etre fermé\n", getpid());
-            close(STDIN_FILENO);
-            close(STDOUT_FILENO);
-            close(STDERR_FILENO);
-            //nécessaire ?
-            //todo log
-        } else {
-            printf("error %d\n", getppid());
+    if (pid == -1) { exit(EXIT_FAILURE); }
+    else if (pid != 0) { exit(EXIT_SUCCESS); } 
+    else { 
+        pid = fork();
+        if (pid == -1) { exit(EXIT_FAILURE); }
+        else if (pid != 0) { exit(EXIT_SUCCESS); }
+        else {
+            if (setsid() < 0) { exit(EXIT_FAILURE); }
+            printf("PID : %d Ce terminal peut etre fermé\n", getpid());
+            printf("PPID : %d Ce terminal peut etre fermé\n", getppid());
+            printf("demon cree !");
         }
-        return 0;
-    } else {
-        //pere a tuer
-        exit(0);
-        //envoyer un signal a catch avec le fils pour confirmer ?
     }
 }
+
+
+
 
 /*
 int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
@@ -44,8 +35,9 @@ int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
     close(fd_reply);
     return 0;
 }
+ */
 
-
+/*
 void read_from_pipes() {
     while (1) { //boucle nécéssaire ?
         int fd_request = open(path_request, O_RDONLY); //ou mettre le close ?
@@ -82,7 +74,13 @@ void read_from_pipes() {
 }
 */
 int main() {
+    char *path_request = init_path_request(init_path());
+    char *path_reply = init_path_reply(init_path());
+    if (mkfifo(path_request,0666) == -1) { exit(EXIT_FAILURE); }
+    if (mkfifo(path_reply,0666) == -1) { exit(EXIT_FAILURE); }
+
     create_daemon();
+    while (1){ }
     //read_from_pipes();
     printf("zzzz\n");
     exit(0);
