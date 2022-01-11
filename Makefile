@@ -1,8 +1,15 @@
 CC=gcc
 CCFLAGS=-Wall
+.PHONY: all cassini saturnd 
 
-init: 
-	$(CC) $(CCFLAGS) src/cassini.c src/timing-text-io.c -o cassini -g
+all: cassini saturnd 
+
+cassini: 
+	$(CC) $(CCFLAGS) src/cassini.c src/timing-text-io.c src/common.c -o cassini 
+	
+saturnd: 
+	$(CC) $(CCFLAGS) src/saturnd.c src/timing-text-io.c src/common.c -o saturnd
+
 
 distclean:
-	rm -f cassini *.o
+	rm -f cassini saturnd *.o

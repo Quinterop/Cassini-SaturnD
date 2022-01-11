@@ -1,21 +1,9 @@
 #include "../include/cassini.h"
 
-//assignation du répertoire par défaut des pipes
-char *username = getlogin();
-char *pipes_directory = "/tmp/<USERNAME>/saturnd/pipes";
-size_t length = strlen("/tmp/") + strlen(username) + strlen("/saturnd/pipes");
-char* pipes_directory = malloc(length + 1);
-strcpy(pipes_directory, "/tmp/");
-strcat(pipes_directory, username);
-strcat(pipes_directory, "/saturnd/pipes");
-char *path_request = malloc(strlen(pipes_directory) + strlen("/saturnd-request-pipe") + 1);
-if (path_request == NULL) goto error;
-strcat(strcpy(path_request, pipes_directory), "/saturnd-request-pipe");
-char *path_reply = malloc(strlen(pipes_directory) + strlen("/saturnd-reply-pipe") + 1);
-if (path_reply == NULL) goto error;
-strcat(strcpy(path_reply, pipes_directory), "/saturnd-reply-pipe");
+
 
 int create_daemon() {
+    printf("Hello");
     int pid = fork();
     if (pid == -1) {
         exit(1);
@@ -43,7 +31,7 @@ int create_daemon() {
     }
 }
 
-
+/*
 int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
     int fd_reply = open(path_reply,O_WRONLY);
     if (fd_reply == -1) return 1;//todo
@@ -92,12 +80,10 @@ void read_from_pipes() {
     }
     exit_loop : //spaghetti ?
 }
-
+*/
 int main() {
     create_daemon();
-    read_from_pipes();
+    //read_from_pipes();
     printf("zzzz\n");
     exit(0);
-
-    error:
 }

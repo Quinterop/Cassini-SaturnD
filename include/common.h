@@ -28,4 +28,13 @@ typedef struct commandline{
     string argv[];
 } commandline;
 
+
+char * init_path();
+
+char * init_path_request(char *pipes_directory);
+
+char * init_path_reply(char *pipes_directory);
+
+int free_and_exit(char *path_request, char *path_reply);
+
 #endif // COMMON
