@@ -13,6 +13,7 @@
 #include <endian.h>
 #include <inttypes.h>
 #include <time.h>
+#include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <poll.h>
@@ -37,6 +38,8 @@ char * init_path();
 char * init_path_request(char *pipes_directory);
 
 char * init_path_reply(char *pipes_directory);
+
+char * init_path_tasks(char * pipes_directory);
 
 int free_and_exit(char *path_request, char *path_reply);
 

@@ -26,6 +26,13 @@ char * init_path_reply(char *pipes_directory) {
     return path_reply;
 }
 
+char * init_path_tasks(char * pipes_directory) {
+    char *path_tasks = malloc(strlen(pipes_directory) + strlen("/tasks") + 1);
+    if (path_tasks == NULL) { exit(EXIT_FAILURE); }
+    strcat(strcpy(path_tasks, pipes_directory), "/tasks");
+    return path_tasks;
+}
+
 //free les espaces memoire alloues et return EXIT_FAILURE
 int free_and_exit(char *path_request, char *path_reply) {
   free(path_request);
@@ -46,11 +53,11 @@ int write_uint16(uint16_t message,char* path){
 
 //renvoie le reptype lu, ou -1
 uint16_t read_uint16(int fd_reply, char *path_reply, char *path_request) {
-    uint16_t reptype;
-    int err = read(fd_reply, &reptype, sizeof(uint16_t));
+    uint16_t message;
+    int err = read(fd_reply, &message, sizeof(uint16_t));
     if (err == -1) { free_and_exit(path_request, path_reply); }
-    reptype = be16toh(reptype);
-    return reptype;
+    message = be16toh(message);
+    return message;
 }
 
 int write_uint64(uint64_t message,char* path){
