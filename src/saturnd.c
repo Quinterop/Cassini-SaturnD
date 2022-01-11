@@ -1,6 +1,7 @@
 #include "../include/cassini.h"
 
 
+
 void create_daemon() {
     int pid = fork();
     if (pid == -1) { exit(EXIT_FAILURE); }
@@ -81,8 +82,10 @@ void read_from_pipes() {
 int main() {
     char *path_request = init_path_request(init_path());
     char *path_reply = init_path_reply(init_path());
-    if (mkfifo(path_request,0666) == -1) { exit(EXIT_FAILURE); }
-    if (mkfifo(path_reply,0666) == -1) { exit(EXIT_FAILURE); }
+    int pipe_request = mkfifo(path_request,0666);
+    int pipe_reply = (mkfifo(path_reply,0666);
+    if (pipe_request ==-1|| pipe_reply ==-1){
+        exit(EXIT_FAILURE); }
 
     create_daemon();
     read_from_pipes();
