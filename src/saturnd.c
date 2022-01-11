@@ -104,6 +104,34 @@ void get_stdout(char *tasks_directory, int fd_request, char * path_request, char
 }
 
 
+uint16_t remove_task(char * tasks_directory, int fd_request, char * path_request, char * path_reply){ 
+    uint64_t taskid;
+    if (read(fd_request, &taskid, sizeof(uint64_t)) == -1) {
+        free_and_exit(path_request, path_reply); 
+    }
+    taskid = be64toh(taskid);
+    uint16_t reptype = SERVER_REPLY_ERROR;
+    char output[50];
+    sprintf(output,"%d",taskid);
+    struct dirent *dir;
+    DIR *d = opendir(tasks_directory); 
+    if (d) {
+        while ((dir = readdir(d)) != NULL){
+            if (strcmp(dir->d_name,output)==0){
+                unlink(strcat("/tmp/<username>/saturnd/taches/",dir->d_name));
+                reptype = SERVER_REPLY_OK;
+            }
+        }
+    }
+    int fd_reply = open (path_reply, O_WRONLY);
+    reptype = hto16(reptype);
+    int err = write(fd_reply, &reptype, sizeof(uint16_t));
+    if (err == -1) { free(path_reply); }
+    close(fd_reply);
+    return reptype;  
+}
+
+
 
 void read_from_pipes(char * path_request, char * path_reply, char * path_tasks) {
     int fd_request = open(path_request, O_RDONLY); 
@@ -124,16 +152,16 @@ void read_from_pipes(char * path_request, char * path_reply, char * path_tasks) 
             switch (opcode_req) {
                 case CLIENT_REQUEST_TERMINATE:
                     send_reply_bool(1,path_reply);
-                    goto exit_loop;
+                    break;
                 // case CLIENT_REQUEST_LIST_TASKS:
                 //     list_tasks();
                 //     break;
                 // case CLIENT_REQUEST_CREATE_TASK:
                 //     create_task(timing,commandline);
                 //     break;
-                // case CLIENT_REQUEST_REMOVE_TASK:
-                //     remove_task(taskid);
-                //     break;
+                case CLIENT_REQUEST_REMOVE_TASK:
+                    remove_task(path_tasks, fd_request, path_request, path_reply);
+                    break;
                 // case CLIENT_REQUEST_GET_TIMES_AND_EXITCODES:
                 //     get_times_and_exitcodes(taskid);
                 //     break;
@@ -145,18 +173,15 @@ void read_from_pipes(char * path_request, char * path_reply, char * path_tasks) 
                 //     break;
             }
         }
-        exit_loop : 
     }
 }
-
-
 
 int main() {
     char *path_request = init_path_request(init_path());
     char *path_reply = init_path_reply(init_path());
     char *path_tasks = init_path_tasks(init_path());
-    if (mkfifo(path_request,0666) == -1) { exit(EXIT_FAILURE); }
-    if (mkfifo(path_reply,0666) == -1) { exit(EXIT_FAILURE); }
+    if (mkfifo(path_request,0666) == -1) { goto error; }
+    if (mkfifo(path_reply,0666) == -1) { goto error; }
 
     create_daemon();
     read_from_pipes(path_request,path_reply,path_tasks);
@@ -170,4 +195,5 @@ int main() {
       free(path_request);
       free(path_reply);
       return EXIT_FAILURE;
+
 }
