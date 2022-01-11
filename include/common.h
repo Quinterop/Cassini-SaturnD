@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <poll.h>
+#include <dirent.h>
 
 #include "client-request.h"
 #include "server-reply.h"

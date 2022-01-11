@@ -36,6 +36,29 @@ int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
     return 0;
 }
 
+uint16_t remove_task(taskid){ 
+    uint16_t reptype = SERVER_REPLY_ERROR;
+    char output[50];
+    sprintf(output,"%d",taskid);
+    struct dirent *dir;
+    DIR *d = opendir("/tmp/<username>/saturnd/taches/"); 
+    if (d) {
+        while ((dir = readdir(d)) != NULL){
+            if (strcmp(dir->d_name,output)==0){
+                unlink(strcat("/tmp/<username>/saturnd/taches/",dir->d_name));
+                reptype = SERVER_REPLY_OK;
+            }
+        }
+    }
+    int fd_reply = open (path_reply, O_WRONLY);
+    reptype = hto16(reptype)
+    int err = write(fd_reply, &reptype, sizeof(uint16_t));
+    if (err == -1) { free(path_reply); }
+    close(fd_reply);
+    return reptype;
+    
+}
+
 
 
 void read_from_pipes() {
@@ -79,6 +102,7 @@ void read_from_pipes() {
         exit_loop : //spaghetti ?
     }
 }
+
 int main() {
     char *path_request = init_path_request(init_path());
     char *path_reply = init_path_reply(init_path());
