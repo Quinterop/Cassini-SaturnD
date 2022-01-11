@@ -1,7 +1,6 @@
 #include "../include/cassini.h"
 
 
-
 void create_daemon() {
     int pid = fork();
     if (pid == -1) { exit(EXIT_FAILURE); }
@@ -20,10 +19,7 @@ void create_daemon() {
 }
 
 
-
-
-
-int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
+int send_reply_bool(int reptype, char *path_reply){//0 pour ok et autre pour erreur
     int fd_reply = open(path_reply,O_WRONLY);
     if (fd_reply == -1) return 1;//todo
     uint16_t response;
@@ -35,13 +31,90 @@ int send_reply_bool(int reptype){//0 pour ok et autre pour erreur
     close(fd_reply);
     return 0;
 }
+ 
+int sameTaskid(char *name, uint64_t taskid) {
+    uint64_t nameInt = ToUInt64(name);
+    return (nameInt == taskid);
+}
 
-uint16_t remove_task(taskid){ 
+void get_stdout(char *tasks_directory, int fd_request, char * path_request, char * path_reply) {
+    uint64_t taskid;
+    if (read(fd_request, &taskid, sizeof(uint64_t)) == -1) {
+        free_and_exit(path_request, path_reply); 
+    }
+    taskid = be64toh(taskid);
+    DIR * dirp = opendir(tasks_directory);
+    struct dirent *entry;
+    while ((entry = readdir(dirp)) != NULL) {
+        char *name = entry->d_name;
+        if (entry->d_type == DT_DIR) {
+            if (sameTaskid(name,taskid)) {
+                char * path = malloc(1024);
+                sprintf(path, "%s/%s" ,tasks_directory,name);
+                char * filePathSO = malloc(1024);
+                sprintf(filePathSO, "%s/stdout", path);
+                int fd = open(filePathSO, O_RDONLY);
+                if (fd == -1) { free_and_exit(path_request,path_reply); }
+                
+                //lecture dans le fichier
+                uint32_t length; 
+                if (read(fd, &length, sizeof(uint32_t)) == -1) {
+                    free_and_exit(path_request, path_reply);
+                }
+                char bufferOutput[length];
+                if (read(fd, &bufferOutput, length) == -1) {
+                    free_and_exit(path_request, path_reply);
+                }
+                close(fd);
+                close(fd_request);
+                free(path);
+                free(filePathSO);
+                
+                if (length == 0) {
+                    //ecriture dans le pipe reply pour le reptype OK
+                    uint16_t reptype = htobe16(SERVER_REPLY_ERROR);
+                    uint16_t errcode = htobe16(SERVER_REPLY_ERROR_NEVER_RUN);
+                    int buffer_size = sizeof(uint16_t) + sizeof(uint16_t);
+                    char bufferWrite[buffer_size];
+                    memmove(bufferWrite,&reptype,sizeof(uint16_t));
+                    memmove(bufferWrite+sizeof(uint16_t),&errcode,sizeof(uint16_t));
+                    int fd_reply = open(path_reply,O_WRONLY);
+                    if (fd_reply == -1) { free_and_exit(path_request,path_reply); }
+                    if (write(fd_reply, bufferWrite, buffer_size) == -1) { free_and_exit(path_request,path_reply); }
+                    close(fd_reply);
+                }
+                else {
+                    //ecriture dans le pipe reply pour le reptype ERROR
+                    uint16_t reptype = htobe16(SERVER_REPLY_OK);
+                    int buffer_size = sizeof(uint16_t) + sizeof(uint32_t) + length;
+                    char bufferWrite[buffer_size];
+                    uint32_t stringL = htobe32(length);
+                    memmove(bufferWrite,&reptype,sizeof(uint16_t));
+                    memmove(bufferWrite+sizeof(uint16_t),&stringL,sizeof(uint32_t));
+                    memmove(bufferWrite+sizeof(uint16_t)+sizeof(uint32_t),bufferOutput,length);
+                    int fd_reply = open(path_reply,O_WRONLY);
+                    if (fd_reply == -1) { free_and_exit(path_request,path_reply); }
+                    if (write(fd_reply, bufferWrite, buffer_size) == -1) { free_and_exit(path_request,path_reply); }
+                    close(fd_reply);
+                }
+            }
+        }
+    }
+    closedir(dirp);
+}
+
+
+uint16_t remove_task(char * tasks_directory, int fd_request, char * path_request, char * path_reply){ 
+    uint64_t taskid;
+    if (read(fd_request, &taskid, sizeof(uint64_t)) == -1) {
+        free_and_exit(path_request, path_reply); 
+    }
+    taskid = be64toh(taskid);
     uint16_t reptype = SERVER_REPLY_ERROR;
     char output[50];
     sprintf(output,"%d",taskid);
     struct dirent *dir;
-    DIR *d = opendir("/tmp/<username>/saturnd/taches/"); 
+    DIR *d = opendir(tasks_directory); 
     if (d) {
         while ((dir = readdir(d)) != NULL){
             if (strcmp(dir->d_name,output)==0){
@@ -51,73 +124,76 @@ uint16_t remove_task(taskid){
         }
     }
     int fd_reply = open (path_reply, O_WRONLY);
-    reptype = hto16(reptype)
+    reptype = hto16(reptype);
     int err = write(fd_reply, &reptype, sizeof(uint16_t));
     if (err == -1) { free(path_reply); }
     close(fd_reply);
-    return reptype;
-    
+    return reptype;  
 }
 
 
 
-void read_from_pipes() {
-    int fd_request = open(path_request, O_RDONLY); //ou mettre le close ?
+void read_from_pipes(char * path_request, char * path_reply, char * path_tasks) {
+    int fd_request = open(path_request, O_RDONLY); 
+    if (fd_request == -1) { free_and_exit(path_request,path_reply); }
     struct pollfd pfd[1];
     pfd[0].fd = fd_request;
-    //pfd[0].events=POLLIN;
+    pfd[0].events=POLLIN;
 
-    while (1) { //boucle nécéssaire ?
-        poll(pfd, 1, 1000);
-        if (pfd[0].revents & POLLIN) {
-            //test err
-            uint16_t request;
-            int rd = read(fd_request, &request, sizeof(uint16_t));
-            //test err
-            request = be16toh(request);
-            switch (request) {
+    while (1) {
+        poll(pfd,1,60000);
+        if (pfd[0].revents & POLLIN){
+
+            uint16_t opcode_req;
+            if (read(fd_request, &opcode_req, sizeof(uint16_t)) == -1) { 
+                free_and_exit(path_request, path_reply);
+            }
+            opcode_req = be16toh(opcode_req);
+            switch (opcode_req) {
                 case CLIENT_REQUEST_TERMINATE:
-                    send_reply_bool(1);
-                    goto exit_loop;
-                case CLIENT_REQUEST_LIST_TASKS:
-                    list_tasks();
+                    send_reply_bool(1,path_reply);
                     break;
-                case CLIENT_REQUEST_CREATE_TASK:
-                    create_task(timing, commandline);
-                    break;
+                // case CLIENT_REQUEST_LIST_TASKS:
+                //     list_tasks();
+                //     break;
+                // case CLIENT_REQUEST_CREATE_TASK:
+                //     create_task(timing,commandline);
+                //     break;
                 case CLIENT_REQUEST_REMOVE_TASK:
-                    remove_task(taskid);
+                    remove_task(path_tasks, fd_request, path_request, path_reply);
                     break;
-                case CLIENT_REQUEST_GET_TIMES_AND_EXITCODES:
-                    get_times_and_exitcodes(taskid);
-                    break;
+                // case CLIENT_REQUEST_GET_TIMES_AND_EXITCODES:
+                //     get_times_and_exitcodes(taskid);
+                //     break;
                 case CLIENT_REQUEST_GET_STDOUT:
-                    get_stdout(taskid);
+                    get_stdout(path_tasks,fd_request,path_request, path_reply);
                     break;
-                case CLIENT_REQUEST_GET_STDERR:
-                    get_stderr(taskid);
-                    break;
+                // case CLIENT_REQUEST_GET_STDERR:
+                //     get_stderr(taskid);
+                //     break;
             }
         }
-        exit_loop : //spaghetti ?
     }
 }
 
 int main() {
     char *path_request = init_path_request(init_path());
     char *path_reply = init_path_reply(init_path());
-    int pipe_request = mkfifo(path_request,0666);
-    int pipe_reply = (mkfifo(path_reply,0666);
-    if (pipe_request ==-1|| pipe_reply ==-1){
-        exit(EXIT_FAILURE); }
+    char *path_tasks = init_path_tasks(init_path());
+    if (mkfifo(path_request,0666) == -1) { goto error; }
+    if (mkfifo(path_reply,0666) == -1) { goto error; }
 
     create_daemon();
-    read_from_pipes();
-
+    read_from_pipes(path_request,path_reply,path_tasks);
 
     free(path_request);
     free(path_reply);
-    printf("zzzz\n"); //inutile
+    return EXIT_SUCCESS;
 
-    exit(0);
+    error:
+      if (errno != 0) perror("main");
+      free(path_request);
+      free(path_reply);
+      return EXIT_FAILURE;
+
 }
